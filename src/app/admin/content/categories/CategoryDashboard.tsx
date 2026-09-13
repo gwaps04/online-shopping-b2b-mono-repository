@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useRef } from "react";
+import { useActionState, useState, useRef, useEffect } from "react";
 import { Upload, CheckCircle2, AlertCircle, Armchair, Zap, Home, Gift, Laptop, Shirt, ShoppingBag, Dumbbell, Pencil, Trash2, Plus } from "lucide-react";
 import { saveCategory, deleteCategory, updateCategorySettings } from "./actions";
 
@@ -22,34 +22,59 @@ const PRESET_GRADIENTS = [
 ];
 
 export default function CategoryDashboard({ categories, settings }: { categories: any[], settings: any }) {
-  // Tabs: 'list', 'form', 'style'
   const [activeTab, setActiveTab] = useState<'list' | 'form' | 'style'>('list');
   const [editingCategory, setEditingCategory] = useState<any>(null);
 
-  // Forms State
   const [catState, catFormAction, isCatPending] = useActionState(saveCategory, { success: "", error: "" });
   const [styleState, styleFormAction, isStylePending] = useActionState(updateCategorySettings, { success: "", error: "" });
   
   const [imagePreview, setImagePreview] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Handlers
-  const openEditForm = (cat: any) => {
-    setEditingCategory(cat);
-    setImagePreview(cat.image_url || "");
-    setActiveTab('form');
-  };
+  // Woz Engine: Controlled State for Auto-Slug Generation
+  const [nameInput, setNameInput] = useState("");
+  const [slugInput, setSlugInput] = useState("");
 
+  // Woz UX: Reset form states when switching to Add New
   const openAddForm = () => {
     setEditingCategory(null);
     setImagePreview("");
+    setNameInput("");
+    setSlugInput("");
+    setActiveTab('form');
+  };
+
+  // Woz UX: Pre-populate states when editing
+  const openEditForm = (cat: any) => {
+    setEditingCategory(cat);
+    setImagePreview(cat.image_url || "");
+    setNameInput(cat.name || "");
+    setSlugInput(cat.slug || "");
     setActiveTab('form');
   };
 
   const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this category? Sub-categories will be un-parented.")) {
       await deleteCategory(id);
-      window.location.reload(); // Quick refresh to sync UI
+      window.location.reload(); 
+    }
+  };
+
+  // Woz Engine: Real-time Slug Generator Logic
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newName = e.target.value;
+    setNameInput(newName);
+    
+    // Only auto-generate if we are creating a new category, 
+    // or if the admin hasn't manually overridden the slug yet.
+    if (!editingCategory) {
+      const generatedSlug = newName
+        .toLowerCase()
+        .trim()
+        .replace(/[\s\W-]+/g, '-') // Replace spaces and non-word chars with hyphens
+        .replace(/^-+|-+$/g, '');  // Remove leading/trailing hyphens
+        
+      setSlugInput(generatedSlug);
     }
   };
 
@@ -82,7 +107,6 @@ export default function CategoryDashboard({ categories, settings }: { categories
         <p className="text-slate-500 mt-1">Manage your product hierarchies and section design.</p>
       </div>
 
-      {/* Woz Interface: Dashboard Tabs */}
       <div className="flex space-x-1 bg-slate-200/50 p-1 rounded-lg w-fit">
         <button onClick={() => setActiveTab('list')} className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'list' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>Manage Categories</button>
         <button onClick={() => setActiveTab('style')} className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === 'style' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>Section Styling</button>
@@ -131,17 +155,32 @@ export default function CategoryDashboard({ categories, settings }: { categories
           {catState?.success && <div className="bg-green-50 text-green-800 p-3 rounded-md flex items-center gap-2"><CheckCircle2 className="w-5 h-5" />{catState.success}</div>}
           {catState?.error && <div className="bg-red-50 text-red-800 p-3 rounded-md flex items-center gap-2"><AlertCircle className="w-5 h-5" />{catState.error}</div>}
 
-          {/* Hidden ID field for updates */}
           {editingCategory && <input type="hidden" name="id" value={editingCategory.id} />}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-slate-700">Name</label>
-              <input name="name" type="text" defaultValue={editingCategory?.name} required className="mt-1 block w-full h-11 rounded-md border border-slate-300 px-3 text-sm" />
+              {/* Woz Fix: Controlled Input for Name */}
+              <input 
+                name="name" 
+                type="text" 
+                required 
+                value={nameInput}
+                onChange={handleNameChange} 
+                className="mt-1 block w-full h-11 rounded-md border border-slate-300 px-3 text-sm" 
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700">URL Slug</label>
-              <input name="slug" type="text" defaultValue={editingCategory?.slug} required className="mt-1 block w-full h-11 rounded-md border border-slate-300 px-3 text-sm bg-slate-50" />
+              {/* Woz Fix: Controlled Input for Slug */}
+              <input 
+                name="slug" 
+                type="text" 
+                required 
+                value={slugInput}
+                onChange={(e) => setSlugInput(e.target.value)} // Allows manual override
+                className="mt-1 block w-full h-11 rounded-md border border-slate-300 px-3 text-sm bg-slate-50" 
+              />
             </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-slate-700">Parent Category</label>

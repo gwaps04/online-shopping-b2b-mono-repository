@@ -50,9 +50,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </Link>
               
               {/* Future Scaling Placeholders (Locked) */}
-              <div className="block px-3 py-2 text-sm text-slate-600 cursor-not-allowed">
-                Products (Locked)
-              </div>
+              <Link href="/admin/content/products" className="block px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">
+                Products Inventory
+              </Link>
             </div>
           </details>
 
