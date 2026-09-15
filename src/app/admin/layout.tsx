@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Settings, LogOut, Store, ChevronDown } from "lucide-react";
+import { LayoutDashboard, FileText, Settings, LogOut, Store, ChevronDown, Package } from "lucide-react";
 import Link from "next/link";
 import { logoutAction } from "./actions";
 
@@ -18,6 +18,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Link href="/admin" className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-slate-900 hover:text-white transition-colors">
             <LayoutDashboard className="w-5 h-5" />
             Dashboard
+          </Link>
+
+          {/* Woz Engine: Orders Dashboard Link */}
+          <Link href="/admin/orders" className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-slate-900 hover:text-white transition-colors mb-2">
+            <Package className="w-5 h-5" />
+            Orders
           </Link>
           
           {/* Woz Engine: Native HTML5 Accordion Menu (Zero JS) */}
@@ -44,12 +50,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 Hero Section
               </Link>
               
-              {/* Active Sub-Module: Categories (Unlocked) */}
+              {/* Active Sub-Module: Categories */}
               <Link href="/admin/content/categories" className="block px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">
                 Categories Grid
               </Link>
               
-              {/* Future Scaling Placeholders (Locked) */}
+              {/* Active Sub-Module: Products */}
               <Link href="/admin/content/products" className="block px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">
                 Products Inventory
               </Link>

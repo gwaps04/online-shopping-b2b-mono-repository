@@ -1,3 +1,4 @@
+import { neon } from "@neondatabase/serverless";
 import Hero from "@/components/sections/Hero";
 import Categories from "@/components/sections/Categories";
 import Products from "@/components/sections/Products";
@@ -5,13 +6,26 @@ import AboutUs from "@/components/sections/AboutUs";
 import FAQs from "@/components/sections/FAQs";
 import Contact from "@/components/sections/Contact";
 
-export default function HomeSPA() {
+export default async function HomeSPA() {
+  // Woz Engine: Fetch data securely on the Server, avoiding Client Component restrictions
+  const sql = neon(process.env.DATABASE_URL!);
+  
+  let products: any[] = [];
+  let productSettings = { title: "Featured Products", subtitle: "", currency: "USD", bg_color: "#ffffff", text_color: "#0f172a" };
+  
+  try {
+    const [prodData, setData] = await Promise.all([
+      sql`SELECT * FROM products ORDER BY created_at DESC LIMIT 8`,
+      sql`SELECT * FROM product_settings WHERE id = 1`
+    ]);
+    products = prodData;
+    if (setData.length > 0) productSettings = setData[0] as any;
+  } catch (error) {
+    console.error("Public Products DB Error", error);
+  }
+
   return (
     <div className="flex flex-col w-full">
-      {/* 
-        Each section must have a corresponding ID matching the Navbar links.
-        Woz Rule: Min-height constraints ensure sections feel substantial.
-      */}
       <section id="hero" className="min-h-[80vh] flex items-center bg-slate-50">
         <Hero />
       </section>
@@ -21,7 +35,8 @@ export default function HomeSPA() {
       </section>
 
       <section id="products" className="py-20 bg-slate-50">
-        <Products />
+        {/* Woz Data Pipeline: Pass the fetched database data down to the Client Component */}
+        <Products products={products} settings={productSettings} />
       </section>
 
       <section id="about" className="py-20 bg-blue-600 text-white">

@@ -1,0 +1,117 @@
+"use server";
+
+import { neon } from "@neondatabase/serverless";
+
+export async function processCheckout(prevState: any, formData: FormData) {
+  // Woz Fix: Extract raw form data directly on the server to prevent DOM-targeting bugs
+  const firstName = formData.get("firstName") as string || "";
+  const lastName = formData.get("lastName") as string || "";
+  const name = `${firstName.trim()} ${lastName.trim()}`.trim();
+  
+  const email = formData.get("email") as string;
+  const phone = formData.get("phone") as string;
+  const address = formData.get("address") as string;
+  const method = formData.get("payment_method") as string;
+  const cartDataRaw = formData.get("cart_data") as string;
+
+  if (!name || !email || !phone || !address || !cartDataRaw) {
+    return { error: "Please fill out all required fields." };
+  }
+
+  let clientCart;
+  try {
+    clientCart = JSON.parse(cartDataRaw);
+    if (!Array.isArray(clientCart) || clientCart.length === 0) throw new Error();
+  } catch {
+    return { error: "Invalid cart data." };
+  }
+
+  const sql = neon(process.env.DATABASE_URL!);
+
+  try {
+    // 1. SECURE PRICING CALCULATION (Never trust the client)
+    let verifiedTotal = 0;
+    const verifiedItems = [];
+
+    for (const item of clientCart) {
+      // Explicit ::uuid casting to prevent injection or type-mismatch errors
+      const dbProduct = await sql`SELECT id, price, discount_percentage, stock FROM products WHERE id = ${item.id}::uuid`;
+      
+      if (dbProduct.length === 0) return { error: `Product not found in database.` };
+      
+      // Handle legacy products that might have NULL stock
+      const currentStock = dbProduct[0].stock || 0;
+      if (currentStock < item.quantity) return { error: `Insufficient stock for ${item.title}. Only ${currentStock} left.` };
+
+      const basePrice = Number(dbProduct[0].price || 0);
+      const discount = Number(dbProduct[0].discount_percentage || 0);
+      const finalPrice = discount > 0 ? basePrice - (basePrice * (discount / 100)) : basePrice;
+
+      verifiedTotal += finalPrice * item.quantity;
+      verifiedItems.push({
+        product_id: dbProduct[0].id,
+        quantity: item.quantity,
+        price_at_purchase: finalPrice
+      });
+    }
+
+    // Woz Math Guard: Enforce 2 decimal places so Postgres NUMERIC(12,2) doesn't crash on infinite fractions
+    const safeTotal = Math.round(verifiedTotal * 100) / 100;
+
+    // 2. CREATE THE ORDER
+    const orderResult = await sql`
+      INSERT INTO orders (customer_name, customer_email, customer_phone, shipping_address, payment_method, total_amount)
+      VALUES (${name}, ${email}, ${phone}, ${address}, ${method}, ${safeTotal})
+      RETURNING id
+    `;
+    const orderId = orderResult[0].id;
+
+    // 3. INSERT ORDER ITEMS & DEDUCT STOCK
+    for (const vItem of verifiedItems) {
+      const safePrice = Math.round(vItem.price_at_purchase * 100) / 100;
+      
+      await sql`
+        INSERT INTO order_items (order_id, product_id, quantity, price_at_purchase)
+        VALUES (${orderId}, ${vItem.product_id}, ${vItem.quantity}, ${safePrice})
+      `;
+      
+      // Use COALESCE to ensure math succeeds even if stock was historically NULL
+      await sql`UPDATE products SET stock = COALESCE(stock, 0) - ${vItem.quantity} WHERE id = ${vItem.product_id}::uuid`;
+    }
+
+    // 4. PAYMENT ROUTING (Focusing on COD as requested)
+    if (method === 'COD') {
+      return { success: true, redirectUrl: `/checkout/success?order=${orderId}` };
+    } 
+    
+    // PayMongo block kept intact for future testing
+    if (method === 'PAYMONGO') {
+      const amountInCents = Math.round(safeTotal * 100);
+      const paymongoPayload = { data: { attributes: { amount: amountInCents, description: `Order ${orderId}`, remarks: `Customer: ${email}` } } };
+
+      const pmResponse = await fetch("https://api.paymongo.com/v1/links", {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+          authorization: `Basic ${Buffer.from(process.env.PAYMONGO_SECRET_KEY!).toString("base64")}`,
+        },
+        body: JSON.stringify(paymongoPayload),
+      });
+
+      if (!pmResponse.ok) throw new Error("Payment Gateway failed to generate link.");
+
+      const pmData = await pmResponse.json();
+      const checkoutUrl = pmData.data.attributes.checkout_url;
+      const linkId = pmData.data.id;
+
+      await sql`UPDATE orders SET paymongo_link_id = ${linkId} WHERE id = ${orderId}`;
+      return { success: true, redirectUrl: checkoutUrl };
+    }
+
+  } catch (error: any) {
+    console.error("Checkout Error Log:", error);
+    // Woz Fix: Temporarily expose the actual error message so if it fails, you see EXACTLY why on your screen.
+    return { error: `Checkout Failed: ${error.message}` };
+  }
+}

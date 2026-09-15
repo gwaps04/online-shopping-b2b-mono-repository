@@ -5,6 +5,9 @@ import "./globals.css";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 
+// Woz Import: Bring in the Global Cart Provider
+import { CartProvider } from "@/lib/CartContext";
+
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const montserrat = Montserrat({ subsets: ["latin"], variable: "--font-montserrat" });
 
@@ -30,14 +33,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" className={`${inter.variable} ${montserrat.variable}`}>
       <body className="font-sans antialiased bg-white text-slate-900 min-h-screen flex flex-col">
-        {/* Pass the secure database data as a prop to the Client Component */}
-        <Navbar settings={navSettings} />
         
-        <main className="grow pt-18"> 
-          {children}
-        </main>
+        {/* Woz Engine: The CartProvider ensures the cart state is global. 
+            It wraps the Navbar (for the badge) and the Main content (for the Add to Cart buttons) */}
+        <CartProvider>
+          <Navbar settings={navSettings} />
+          
+          <main className="grow pt-18"> 
+            {children}
+          </main>
+          
+          <Footer />
+        </CartProvider>
         
-        <Footer />
       </body>
     </html>
   );
