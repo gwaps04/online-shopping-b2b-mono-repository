@@ -3,7 +3,7 @@
 import { neon } from "@neondatabase/serverless";
 
 export async function processCheckout(prevState: any, formData: FormData) {
-  // Woz Fix: Extract raw form data directly on the server to prevent DOM-targeting bugs
+  // Extract fields securely
   const firstName = formData.get("firstName") as string || "";
   const lastName = formData.get("lastName") as string || "";
   const name = `${firstName.trim()} ${lastName.trim()}`.trim();
@@ -29,17 +29,16 @@ export async function processCheckout(prevState: any, formData: FormData) {
   const sql = neon(process.env.DATABASE_URL!);
 
   try {
-    // 1. SECURE PRICING CALCULATION (Never trust the client)
+    // 1. SECURE PRICING CALCULATION
     let verifiedTotal = 0;
     const verifiedItems = [];
 
     for (const item of clientCart) {
-      // Explicit ::uuid casting to prevent injection or type-mismatch errors
-      const dbProduct = await sql`SELECT id, price, discount_percentage, stock FROM products WHERE id = ${item.id}::uuid`;
+      // Woz Fix: Cast item.id to ::integer because products.id is an integer in your DB
+      const dbProduct = await sql`SELECT id, price, discount_percentage, stock FROM products WHERE id = ${item.id}::integer`;
       
       if (dbProduct.length === 0) return { error: `Product not found in database.` };
       
-      // Handle legacy products that might have NULL stock
       const currentStock = dbProduct[0].stock || 0;
       if (currentStock < item.quantity) return { error: `Insufficient stock for ${item.title}. Only ${currentStock} left.` };
 
@@ -50,15 +49,14 @@ export async function processCheckout(prevState: any, formData: FormData) {
       verifiedTotal += finalPrice * item.quantity;
       verifiedItems.push({
         product_id: dbProduct[0].id,
-        quantity: item.quantity,
+        quantity: Number(item.quantity), 
         price_at_purchase: finalPrice
       });
     }
 
-    // Woz Math Guard: Enforce 2 decimal places so Postgres NUMERIC(12,2) doesn't crash on infinite fractions
     const safeTotal = Math.round(verifiedTotal * 100) / 100;
 
-    // 2. CREATE THE ORDER
+    // 2. CREATE THE ORDER (orders.id is a UUID)
     const orderResult = await sql`
       INSERT INTO orders (customer_name, customer_email, customer_phone, shipping_address, payment_method, total_amount)
       VALUES (${name}, ${email}, ${phone}, ${address}, ${method}, ${safeTotal})
@@ -70,21 +68,25 @@ export async function processCheckout(prevState: any, formData: FormData) {
     for (const vItem of verifiedItems) {
       const safePrice = Math.round(vItem.price_at_purchase * 100) / 100;
       
+      // Woz Fix: order_id is ::uuid, but product_id is ::integer
       await sql`
         INSERT INTO order_items (order_id, product_id, quantity, price_at_purchase)
-        VALUES (${orderId}, ${vItem.product_id}, ${vItem.quantity}, ${safePrice})
+        VALUES (${orderId}::uuid, ${vItem.product_id}::integer, ${vItem.quantity}::integer, ${safePrice})
       `;
       
-      // Use COALESCE to ensure math succeeds even if stock was historically NULL
-      await sql`UPDATE products SET stock = COALESCE(stock, 0) - ${vItem.quantity} WHERE id = ${vItem.product_id}::uuid`;
+      // Woz Fix: Cast id to ::integer
+      await sql`
+        UPDATE products 
+        SET stock = COALESCE(stock, 0) - ${vItem.quantity}::integer 
+        WHERE id = ${vItem.product_id}::integer
+      `;
     }
 
-    // 4. PAYMENT ROUTING (Focusing on COD as requested)
+    // 4. PAYMENT ROUTING
     if (method === 'COD') {
       return { success: true, redirectUrl: `/checkout/success?order=${orderId}` };
     } 
     
-    // PayMongo block kept intact for future testing
     if (method === 'PAYMONGO') {
       const amountInCents = Math.round(safeTotal * 100);
       const paymongoPayload = { data: { attributes: { amount: amountInCents, description: `Order ${orderId}`, remarks: `Customer: ${email}` } } };
@@ -105,13 +107,12 @@ export async function processCheckout(prevState: any, formData: FormData) {
       const checkoutUrl = pmData.data.attributes.checkout_url;
       const linkId = pmData.data.id;
 
-      await sql`UPDATE orders SET paymongo_link_id = ${linkId} WHERE id = ${orderId}`;
+      await sql`UPDATE orders SET paymongo_link_id = ${linkId} WHERE id = ${orderId}::uuid`;
       return { success: true, redirectUrl: checkoutUrl };
     }
 
   } catch (error: any) {
     console.error("Checkout Error Log:", error);
-    // Woz Fix: Temporarily expose the actual error message so if it fails, you see EXACTLY why on your screen.
     return { error: `Checkout Failed: ${error.message}` };
   }
 }

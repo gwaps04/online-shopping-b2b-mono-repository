@@ -4,8 +4,6 @@ import { neon } from "@neondatabase/serverless";
 import "./globals.css";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
-
-// Woz Import: Bring in the Global Cart Provider
 import { CartProvider } from "@/lib/CartContext";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -17,15 +15,20 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // Woz Engine: Fetch Global Settings on the server before rendering the page
   const sql = neon(process.env.DATABASE_URL!);
   let navSettings = { company_name: "STORE.", theme_key: "light", font_key: "display", logo_url: "" };
+  let storeCurrency = "USD"; // Default fallback
   
   try {
-    const data = await sql`SELECT * FROM global_settings WHERE id = 1`;
-    if (data.length > 0) {
-      navSettings = data[0] as any;
-    }
+    // Woz Data Pipeline: Fetch both global settings and product settings simultaneously
+    const [globalData, prodData] = await Promise.all([
+      sql`SELECT * FROM global_settings WHERE id = 1`,
+      sql`SELECT currency FROM product_settings WHERE id = 1` // Get the selected currency
+    ]);
+    
+    if (globalData.length > 0) navSettings = globalData[0] as any;
+    if (prodData.length > 0) storeCurrency = prodData[0].currency;
+
   } catch (e) {
     console.error("Settings Table missing or error fetching data");
   }
@@ -34,9 +37,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" className={`${inter.variable} ${montserrat.variable}`}>
       <body className="font-sans antialiased bg-white text-slate-900 min-h-screen flex flex-col">
         
-        {/* Woz Engine: The CartProvider ensures the cart state is global. 
-            It wraps the Navbar (for the badge) and the Main content (for the Add to Cart buttons) */}
-        <CartProvider>
+        {/* Woz Engine: Inject the database currency into the Global State Provider */}
+        <CartProvider activeCurrency={storeCurrency}>
           <Navbar settings={navSettings} />
           
           <main className="grow pt-18"> 

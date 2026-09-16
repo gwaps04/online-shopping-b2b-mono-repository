@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-// Woz Fix: Added useRouter for client-side navigation
 import { useRouter } from "next/navigation"; 
 import { Menu, X, Trash2, Plus, Minus, ShoppingBag, Tag } from "lucide-react";
 import SearchBar from "@/components/ui/SearchBar";
@@ -33,20 +32,20 @@ const NAV_LINKS = [
 
 export default function Navbar({ settings }: { settings: any }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const router = useRouter(); // Woz Fix: Initialize router
+  const router = useRouter(); 
   
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const { cart, removeFromCart, updateQuantity, totalPrice } = useCart();
+  // Woz Fix: Destructure the dynamic formatting tool
+  const { cart, removeFromCart, updateQuantity, totalPrice, formatPrice } = useCart();
 
   const activeTheme = THEME_DICTIONARY[settings?.theme_key] || THEME_DICTIONARY["light"];
   const fontFamily = FONT_DICTIONARY[settings?.font_key] || FONT_DICTIONARY["display"];
   const companyName = settings?.company_name || "STORE.";
   const logoUrl = settings?.logo_url;
 
-  // Woz Engine: Handle checkout navigation
   const handleProceedToCheckout = () => {
-    setIsCartOpen(false); // Close the drawer first
-    router.push("/checkout"); // Navigate to the checkout page
+    setIsCartOpen(false); 
+    router.push("/checkout"); 
   };
 
   return (
@@ -101,7 +100,6 @@ export default function Navbar({ settings }: { settings: any }) {
         )}
       </header>
 
-      {/* Woz Cart Drawer Overlay */}
       {isCartOpen && (
         <div className="fixed inset-0 z-50 overflow-hidden" aria-labelledby="slide-over-title" role="dialog" aria-modal="true">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setIsCartOpen(false)} aria-hidden="true" />
@@ -137,7 +135,8 @@ export default function Navbar({ settings }: { settings: any }) {
                             <div>
                               <div className="flex justify-between text-base font-semibold text-slate-900">
                                 <h3><Link href={`/product/${item.slug}`} onClick={() => setIsCartOpen(false)} className="hover:text-blue-600 transition-colors">{item.title}</Link></h3>
-                                <p className="ml-4 font-mono">${(item.price * item.quantity).toFixed(2)}</p>
+                                {/* Woz Dynamic Currency Render */}
+                                <p className="ml-4 font-mono">{formatPrice(item.price * item.quantity)}</p>
                               </div>
                             </div>
                             
@@ -163,11 +162,11 @@ export default function Navbar({ settings }: { settings: any }) {
                   <div className="border-t border-slate-100 px-6 py-6 sm:px-6 bg-slate-50">
                     <div className="flex justify-between text-lg font-bold text-slate-900 mb-2">
                       <p>Subtotal</p>
-                      <p className="font-mono">${totalPrice.toFixed(2)}</p>
+                      {/* Woz Dynamic Currency Render */}
+                      <p className="font-mono">{formatPrice(totalPrice)}</p>
                     </div>
                     <p className="mt-0.5 text-sm text-slate-500 mb-6">Shipping and taxes calculated at checkout.</p>
                     <div className="mt-6">
-                      {/* Woz Fix: Wired up the checkout button */}
                       <button 
                         onClick={handleProceedToCheckout}
                         className="flex w-full items-center justify-center rounded-md border border-transparent bg-slate-900 px-6 py-4 text-base font-bold text-white shadow-sm hover:bg-slate-800 transition-colors"

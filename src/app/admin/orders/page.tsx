@@ -1,24 +1,36 @@
 import { neon } from "@neondatabase/serverless";
 import { Package, Search, ChevronRight, Clock, CheckCircle2, XCircle } from "lucide-react";
 
+// Woz Engine: Currency Map
+const CURRENCY_SYMBOLS: Record<string, string> = { "USD": "$", "PHP": "₱", "EUR": "€", "GBP": "£" };
+
 export default async function AdminOrdersPage() {
   const sql = neon(process.env.DATABASE_URL!);
   
   let orders: any[] = [];
+  let activeCurrency = "USD"; // Fallback
   
   try {
-    // Fetch orders, ordered by newest first
-    orders = await sql`
-      SELECT id, customer_name, customer_email, payment_method, payment_status, total_amount, created_at 
-      FROM orders 
-      ORDER BY created_at DESC 
-      LIMIT 50
-    `;
+    // Woz Fix: Fetch orders and product settings concurrently
+    const [ordersData, settingsData] = await Promise.all([
+      sql`
+        SELECT id, customer_name, customer_email, payment_method, payment_status, total_amount, created_at 
+        FROM orders 
+        ORDER BY created_at DESC 
+        LIMIT 50
+      `,
+      sql`SELECT currency FROM product_settings WHERE id = 1`
+    ]);
+    
+    orders = ordersData;
+    if (settingsData.length > 0) activeCurrency = settingsData[0].currency;
   } catch (error) {
     console.error("Failed to fetch orders:", error);
   }
 
-  // Woz Design: Status Badge styling map
+  // Assign the correct symbol based on what is saved in the database
+  const activeSymbol = CURRENCY_SYMBOLS[activeCurrency] || "$";
+
   const statusStyles: Record<string, string> = {
     'pending': 'bg-amber-50 text-amber-700 border-amber-200',
     'paid': 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -42,7 +54,6 @@ export default async function AdminOrdersPage() {
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[70vh]">
         
-        {/* Toolbar */}
         <div className="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
           <div className="relative w-full max-w-md">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -50,7 +61,6 @@ export default async function AdminOrdersPage() {
           </div>
         </div>
 
-        {/* Data Table */}
         <div className="flex-1 overflow-auto">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-slate-50 sticky top-0 border-b border-slate-200 z-10">
@@ -99,8 +109,9 @@ export default async function AdminOrdersPage() {
                           {Icon} {order.payment_status.charAt(0).toUpperCase() + order.payment_status.slice(1)}
                         </span>
                       </td>
+                      {/* Woz Fix: Applied the dynamic currency formatter */}
                       <td className="px-6 py-4 text-right font-mono font-bold text-slate-900">
-                        ${Number(order.total_amount).toFixed(2)}
+                        {activeSymbol}{Number(order.total_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <button className="inline-flex items-center justify-center p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="View Order">

@@ -7,14 +7,13 @@ import { CreditCard, Truck, ShieldCheck, Tag, Loader2, MapPin, CheckCircle2, Sho
 import { processCheckout } from "./actions";
 
 export default function CheckoutPage() {
-  const { cart, totalPrice, totalItems, clearCart } = useCart();
+  const { cart, totalPrice, totalItems, clearCart, formatPrice } = useCart();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'PAYMONGO'>('COD'); // Defaulted to COD for testing
+  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'PAYMONGO'>('COD'); 
 
   const [formState, formAction, isPending] = useActionState(processCheckout, undefined);
 
-  // Woz Engine: Philippine Address Cascading State
   const [provinces, setProvinces] = useState<any[]>([]);
   const [cities, setCities] = useState<any[]>([]);
   const [barangays, setBarangays] = useState<any[]>([]);
@@ -91,10 +90,8 @@ export default function CheckoutPage() {
             
             <input type="hidden" name="cart_data" value={JSON.stringify(cart)} />
             <input type="hidden" name="payment_method" value={paymentMethod} />
-            {/* The Stitched Address for the Database */}
             <input type="hidden" name="address" value={fullAddress} />
 
-            {/* Woz Error Display: Upgraded to show the exact DB crash if it happens */}
             {formState?.error && (
               <div className="bg-red-50 text-red-700 p-5 rounded-xl border border-red-200 font-medium flex gap-3 shadow-sm">
                 <AlertCircle className="w-6 h-6 shrink-0 text-red-600" />
@@ -243,7 +240,6 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            {/* Woz Fix: Removed the brittle onClick DOM query entirely. */}
             <button 
               type="submit" 
               disabled={isPending || !selectedBrgy.code || !streetAddress}
@@ -277,7 +273,7 @@ export default function CheckoutPage() {
                     <div className="flex flex-1 flex-col justify-center">
                       <div className="flex justify-between text-sm font-semibold text-slate-900">
                         <h3 className="line-clamp-2 pr-4">{item.title}</h3>
-                        <p className="font-mono">${(item.price * item.quantity).toFixed(2)}</p>
+                        <p className="font-mono">{formatPrice(item.price * item.quantity)}</p>
                       </div>
                       <p className="mt-1 text-sm text-slate-500">Qty {item.quantity}</p>
                     </div>
@@ -289,7 +285,7 @@ export default function CheckoutPage() {
             <div className="border-t border-slate-200 pt-6 space-y-4">
               <div className="flex items-center justify-between text-sm text-slate-600">
                 <p>Subtotal ({totalItems} items)</p>
-                <p className="font-mono font-medium">${totalPrice.toFixed(2)}</p>
+                <p className="font-mono font-medium">{formatPrice(totalPrice)}</p>
               </div>
               <div className="flex items-center justify-between text-sm text-slate-600">
                 <p>Shipping</p>
@@ -298,7 +294,7 @@ export default function CheckoutPage() {
               
               <div className="flex items-center justify-between border-t border-slate-200 pt-4">
                 <p className="text-base font-bold text-slate-900">Total to Pay</p>
-                <p className="text-2xl font-black text-slate-900 font-mono tracking-tight">${totalPrice.toFixed(2)}</p>
+                <p className="text-2xl font-black text-slate-900 font-mono tracking-tight">{formatPrice(totalPrice)}</p>
               </div>
             </div>
           </div>
