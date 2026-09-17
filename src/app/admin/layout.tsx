@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Settings, LogOut, Store, ChevronDown, Package } from "lucide-react";
+import { LayoutDashboard, FileText, Settings, LogOut, Store, ChevronDown, Package, Zap } from "lucide-react";
 import Link from "next/link";
 import { logoutAction } from "./actions";
 
@@ -20,15 +20,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             Dashboard
           </Link>
 
-          {/* Woz Engine: Orders Dashboard Link */}
-          <Link href="/admin/orders" className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-slate-900 hover:text-white transition-colors mb-2">
+          {/* Orders Dashboard Link */}
+          <Link href="/admin/orders" className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-slate-900 hover:text-white transition-colors">
             <Package className="w-5 h-5" />
             Orders
           </Link>
+
+          {/* Woz Engine: Automation & Webhook Integrations */}
+          <Link href="/admin/automation" className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-slate-900 hover:text-white transition-colors mb-2">
+            <Zap className="w-5 h-5 text-amber-400" />
+            Automations & Webhooks
+          </Link>
           
-          {/* Woz Engine: Native HTML5 Accordion Menu (Zero JS) */}
+          {/* Section Content Accordion */}
           <details className="group" open>
-            {/* The Summary acts as the clickable parent trigger */}
             <summary className="flex items-center justify-between px-3 py-2.5 rounded-md hover:bg-slate-900 hover:text-white transition-colors cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
               <div className="flex items-center gap-3">
                 <FileText className="w-5 h-5" />
@@ -37,25 +42,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180 opacity-50 group-hover:opacity-100" />
             </summary>
             
-            {/* Sub-menu Dropdown List */}
             <div className="flex flex-col gap-1 mt-1 pl-11">
-              
-              {/* Active Sub-Module: Navbar */}
               <Link href="/admin/content" className="block px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">
                 Navigation Bar
               </Link>
-              
-              {/* Active Sub-Module: Hero */}
               <Link href="/admin/content/hero" className="block px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">
                 Hero Section
               </Link>
-              
-              {/* Active Sub-Module: Categories */}
               <Link href="/admin/content/categories" className="block px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">
                 Categories Grid
               </Link>
-              
-              {/* Active Sub-Module: Products */}
               <Link href="/admin/content/products" className="block px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">
                 Products Inventory
               </Link>
