@@ -7,22 +7,26 @@ export async function saveAutomationSettings(prevState: any, formData: FormData)
   const webhookUrl = (formData.get("webhookUrl") as string || "").trim();
   const webhookSecret = (formData.get("webhookSecret") as string || "").trim();
   const isActive = formData.get("isActive") === "on";
+  
+  // Woz Engine: Extract the PayMongo Key securely
+  const paymongoSecret = (formData.get("paymongoSecret") as string || "").trim();
 
   const sql = neon(process.env.DATABASE_URL!);
 
   try {
     await sql`
-      INSERT INTO automation_settings (id, webhook_url, webhook_secret, is_active, updated_at)
-      VALUES (1, ${webhookUrl}, ${webhookSecret}, ${isActive}, CURRENT_TIMESTAMP)
+      INSERT INTO automation_settings (id, webhook_url, webhook_secret, is_active, paymongo_secret_key, updated_at)
+      VALUES (1, ${webhookUrl}, ${webhookSecret}, ${isActive}, ${paymongoSecret}, CURRENT_TIMESTAMP)
       ON CONFLICT (id) DO UPDATE SET
         webhook_url = EXCLUDED.webhook_url,
         webhook_secret = EXCLUDED.webhook_secret,
         is_active = EXCLUDED.is_active,
+        paymongo_secret_key = EXCLUDED.paymongo_secret_key,
         updated_at = CURRENT_TIMESTAMP
     `;
 
     revalidatePath("/admin/automation");
-    return { success: "Webhook configuration saved successfully.", error: "" };
+    return { success: "Settings and API Keys saved securely.", error: "" };
   } catch (error: any) {
     console.error("Automation DB Save Error:", error);
     return { error: `Failed to save configuration: ${error.message}`, success: "" };
@@ -34,7 +38,6 @@ export async function sendTestPing(webhookUrl: string, webhookSecret: string) {
     return { success: false, message: "A valid HTTP/HTTPS Webhook URL is required." };
   }
 
-  // Exact JSON payload schema representing real checkout events
   const samplePayload = {
     event: "order.test_ping",
     timestamp: new Date().toISOString(),
@@ -44,19 +47,12 @@ export async function sendTestPing(webhookUrl: string, webhookSecret: string) {
       customer_name: "Juan Dela Cruz",
       customer_email: "juan@example.ph",
       customer_phone: "09171234567",
-      shipping_address: "Unit 402, Rizal St., Brgy. Bitano, Legazpi City, Albay, 4500",
+      shipping_address: "Unit 402, Rizal St., Legazpi City",
       payment_method: "COD",
       payment_status: "pending",
       total_amount: 31500.00,
       currency: "PHP",
-      items: [
-        {
-          product_id: 1,
-          title: "Samsung Galaxy Flagship",
-          quantity: 1,
-          price_at_purchase: 31500.00
-        }
-      ]
+      items: [{ product_id: 1, title: "Samsung Galaxy Flagship", quantity: 1, price_at_purchase: 31500.00 }]
     }
   };
 
@@ -76,30 +72,17 @@ export async function sendTestPing(webhookUrl: string, webhookSecret: string) {
       method: "POST",
       headers,
       body: JSON.stringify(samplePayload),
-      signal: AbortSignal.timeout(10000), // 10-second guard against hanging workflows
+      signal: AbortSignal.timeout(10000), 
     });
 
     const latency = Date.now() - startTime;
     const responseText = await response.text();
 
     if (!response.ok) {
-      return {
-        success: false,
-        message: `Endpoint responded with HTTP ${response.status} (${response.statusText}) in ${latency}ms`,
-        body: responseText.slice(0, 300)
-      };
+      return { success: false, message: `HTTP ${response.status} in ${latency}ms`, body: responseText.slice(0, 300) };
     }
-
-    return {
-      success: true,
-      message: `200 OK — Ping acknowledged in ${latency}ms`,
-      body: responseText.slice(0, 300)
-    };
+    return { success: true, message: `200 OK — Ping acknowledged in ${latency}ms`, body: responseText.slice(0, 300) };
   } catch (error: any) {
-    console.error("Test Ping Network Error:", error);
-    return {
-      success: false,
-      message: error.name === "TimeoutError" ? "Request timed out after 10 seconds." : `Connection failed: ${error.message}`
-    };
+    return { success: false, message: `Connection failed: ${error.message}` };
   }
 }

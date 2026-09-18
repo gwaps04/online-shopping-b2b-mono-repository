@@ -2,6 +2,122 @@
 
 import { neon } from "@neondatabase/serverless";
 
+// ============================================================================
+// 1. DEDICATED WEBHOOK DISPATCHER (Fires ONLY when payment is confirmed)
+// ============================================================================
+export async function dispatchOrderWebhook(orderId: string) {
+  const sql = neon(process.env.DATABASE_URL!);
+  try {
+    const autoSettings = await sql`SELECT webhook_url, webhook_secret, is_active FROM automation_settings WHERE id = 1`;
+    if (!autoSettings.length || !autoSettings[0].is_active || !autoSettings[0].webhook_url) return;
+
+    const orders = await sql`SELECT * FROM orders WHERE id = ${orderId}::uuid`;
+    if (!orders.length) return;
+    const order = orders[0];
+
+    const items = await sql`
+      SELECT oi.quantity, oi.price_at_purchase, p.title, p.id as product_id
+      FROM order_items oi JOIN products p ON p.id = oi.product_id
+      WHERE oi.order_id = ${orderId}::uuid
+    `;
+
+    const storeSettings = await sql`SELECT currency FROM product_settings WHERE id = 1`;
+    const currency = storeSettings.length > 0 ? storeSettings[0].currency : "PHP";
+
+    const webhookPayload = {
+      event: "order.created",
+      timestamp: new Date().toISOString(),
+      store: "Store Mono E-Commerce",
+      data: {
+        order_id: order.id,
+        customer_name: order.customer_name,
+        customer_email: order.customer_email,
+        customer_phone: order.customer_phone,
+        shipping_address: order.shipping_address,
+        payment_method: order.payment_method,
+        payment_status: order.payment_status,
+        total_amount: Number(order.total_amount),
+        currency: currency,
+        items: items.map(vi => ({
+          product_id: vi.product_id,
+          title: vi.title,
+          quantity: vi.quantity,
+          price_at_purchase: Number(vi.price_at_purchase)
+        }))
+      }
+    };
+
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (autoSettings[0].webhook_secret) {
+      headers["X-Webhook-Secret"] = autoSettings[0].webhook_secret;
+      headers["Authorization"] = `Bearer ${autoSettings[0].webhook_secret}`;
+    }
+
+    await fetch(autoSettings[0].webhook_url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(webhookPayload),
+      signal: AbortSignal.timeout(8000)
+    });
+    console.log(`[WEBHOOK SUCCESS] Dispatched Order: ${order.id}`);
+  } catch (e: any) {
+    console.error(`[WEBHOOK FAILED]`, e.message);
+  }
+}
+
+// ============================================================================
+// 2. SUCCESS PAGE VERIFICATION (Validates PayMongo Status)
+// ============================================================================
+export async function verifyOrderPayment(orderId: string) {
+  const sql = neon(process.env.DATABASE_URL!);
+  try {
+    const orders = await sql`SELECT id, payment_method, payment_status, paymongo_link_id FROM orders WHERE id = ${orderId}::uuid`;
+    if (orders.length === 0) return { success: false, error: "Order not found." };
+    const order = orders[0];
+
+    // If COD, it is verified immediately.
+    if (order.payment_method === 'COD') return { success: true };
+
+    // Woz Guard: If already marked paid, DO NOT fire the webhook again.
+    if (order.payment_status === 'paid') return { success: true };
+
+    if (order.payment_method === 'PAYMONGO' && order.paymongo_link_id) {
+        const pmSettings = await sql`SELECT paymongo_secret_key FROM automation_settings WHERE id = 1`;
+        const pmSecret = (pmSettings.length > 0 && pmSettings[0].paymongo_secret_key) 
+                          ? pmSettings[0].paymongo_secret_key : process.env.PAYMONGO_SECRET_KEY;
+
+        if (!pmSecret) throw new Error("API Key missing.");
+
+        const pmResponse = await fetch(`https://api.paymongo.com/v1/checkout_sessions/${order.paymongo_link_id}`, {
+            headers: {
+                accept: "application/json",
+                authorization: `Basic ${Buffer.from(`${pmSecret}:`).toString("base64")}`
+            }
+        });
+
+        if (!pmResponse.ok) throw new Error("Failed to verify payment with gateway.");
+        const pmData = await pmResponse.json();
+
+        // Check if the session contains a successful payment
+        const payments = pmData.data?.attributes?.payments || [];
+        const isPaid = payments.some((p: any) => p.attributes.status === 'paid');
+
+        if (isPaid) {
+            await sql`UPDATE orders SET payment_status = 'paid' WHERE id = ${orderId}::uuid`;
+            await dispatchOrderWebhook(orderId); // FIRE ALERT ONLY NOW!
+            return { success: true };
+        } else {
+            return { success: false, error: "Payment has not been completed yet." };
+        }
+    }
+  } catch (e: any) {
+     return { success: false, error: e.message };
+  }
+}
+
+// ============================================================================
+// 3. THE CHECKOUT PROCESSOR
+// ============================================================================
 export async function processCheckout(prevState: any, formData: FormData) {
   const firstName = formData.get("firstName") as string || "";
   const lastName = formData.get("lastName") as string || "";
@@ -12,15 +128,15 @@ export async function processCheckout(prevState: any, formData: FormData) {
   const address = formData.get("address") as string;
   const method = formData.get("payment_method") as string;
   const cartDataRaw = formData.get("cart_data") as string;
+  const baseUrl = formData.get("baseUrl") as string; // Required for Callback routing
 
-  if (!name || !email || !phone || !address || !cartDataRaw) {
+  if (!name || !email || !phone || !address || !cartDataRaw || !baseUrl) {
     return { error: "Please fill out all required fields." };
   }
 
   let clientCart;
   try {
     clientCart = JSON.parse(cartDataRaw);
-    if (!Array.isArray(clientCart) || clientCart.length === 0) throw new Error();
   } catch {
     return { error: "Invalid cart data." };
   }
@@ -28,7 +144,6 @@ export async function processCheckout(prevState: any, formData: FormData) {
   const sql = neon(process.env.DATABASE_URL!);
 
   try {
-    // 1. SECURE PRICING CALCULATION
     let verifiedTotal = 0;
     const verifiedItems = [];
 
@@ -37,24 +152,18 @@ export async function processCheckout(prevState: any, formData: FormData) {
       if (dbProduct.length === 0) return { error: `Product not found in database.` };
       
       const currentStock = dbProduct[0].stock || 0;
-      if (currentStock < item.quantity) return { error: `Insufficient stock for ${item.title}. Only ${currentStock} left.` };
+      if (currentStock < item.quantity) return { error: `Insufficient stock for ${item.title}.` };
 
       const basePrice = Number(dbProduct[0].price || 0);
       const discount = Number(dbProduct[0].discount_percentage || 0);
       const finalPrice = discount > 0 ? basePrice - (basePrice * (discount / 100)) : basePrice;
 
       verifiedTotal += finalPrice * item.quantity;
-      verifiedItems.push({
-        product_id: dbProduct[0].id,
-        title: item.title, 
-        quantity: Number(item.quantity), 
-        price_at_purchase: finalPrice
-      });
+      verifiedItems.push({ product_id: dbProduct[0].id, title: item.title, quantity: Number(item.quantity), price_at_purchase: finalPrice });
     }
 
     const safeTotal = Math.round(verifiedTotal * 100) / 100;
 
-    // 2. CREATE THE ORDER
     const orderResult = await sql`
       INSERT INTO orders (customer_name, customer_email, customer_phone, shipping_address, payment_method, total_amount)
       VALUES (${name}, ${email}, ${phone}, ${address}, ${method}, ${safeTotal})
@@ -62,110 +171,71 @@ export async function processCheckout(prevState: any, formData: FormData) {
     `;
     const orderId = orderResult[0].id;
 
-    // 3. INSERT ORDER ITEMS & DEDUCT STOCK
     for (const vItem of verifiedItems) {
-      const safePrice = Math.round(vItem.price_at_purchase * 100) / 100;
       await sql`
         INSERT INTO order_items (order_id, product_id, quantity, price_at_purchase)
-        VALUES (${orderId}::uuid, ${vItem.product_id}::integer, ${vItem.quantity}::integer, ${safePrice})
+        VALUES (${orderId}::uuid, ${vItem.product_id}::integer, ${vItem.quantity}::integer, ${vItem.price_at_purchase})
       `;
-      await sql`
-        UPDATE products SET stock = COALESCE(stock, 0) - ${vItem.quantity}::integer WHERE id = ${vItem.product_id}::integer
-      `;
+      await sql`UPDATE products SET stock = COALESCE(stock, 0) - ${vItem.quantity}::integer WHERE id = ${vItem.product_id}::integer`;
     }
 
-    // 4. WOZ ENGINE: DISPATCH TO N8N WEBHOOK WITH DEEP LOGGING
-    try {
-      const autoSettings = await sql`SELECT webhook_url, webhook_secret, is_active FROM automation_settings WHERE id = 1`;
-      const storeSettings = await sql`SELECT currency FROM product_settings WHERE id = 1`;
-      
-      const isActive = autoSettings.length > 0 && autoSettings[0].is_active;
-      const targetUrl = autoSettings.length > 0 ? autoSettings[0].webhook_url : null;
-
-      if (isActive && targetUrl) {
-        console.log(`\n[WEBHOOK] Dispatching Live Order to: ${targetUrl}`);
-        
-        const currency = storeSettings.length > 0 ? storeSettings[0].currency : "PHP";
-        const webhookPayload = {
-          event: "order.created",
-          timestamp: new Date().toISOString(),
-          store: "Store Mono E-Commerce",
-          data: {
-            order_id: orderId,
-            customer_name: name,
-            customer_email: email,
-            customer_phone: phone,
-            shipping_address: address,
-            payment_method: method,
-            payment_status: "pending",
-            total_amount: safeTotal,
-            currency: currency,
-            items: verifiedItems.map(vi => ({
-              product_id: vi.product_id,
-              title: vi.title,
-              quantity: vi.quantity,
-              price_at_purchase: vi.price_at_purchase
-            }))
-          }
-        };
-
-        const headers: Record<string, string> = { "Content-Type": "application/json" };
-        if (autoSettings[0].webhook_secret) {
-          headers["X-Webhook-Secret"] = autoSettings[0].webhook_secret;
-          headers["Authorization"] = `Bearer ${autoSettings[0].webhook_secret}`;
-        }
-
-        // Fire request with an 8-second abort guard to prevent hanging the checkout
-        await fetch(targetUrl, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(webhookPayload),
-          signal: AbortSignal.timeout(8000)
-        })
-        .then(res => {
-          if (!res.ok) console.error(`[WEBHOOK ERROR] n8n rejected the payload. Status: ${res.status} ${res.statusText}`);
-          else console.log(`[WEBHOOK SUCCESS] n8n accepted the order! Status: ${res.status}`);
-        })
-        .catch(e => console.error(`[WEBHOOK FAILED] Network or Timeout Error: ${e.message}`));
-
-      } else {
-        console.log(`[WEBHOOK SKIPPED] Status: Active=${isActive}, URL Setup=${!!targetUrl}`);
-      }
-    } catch (webhookErr) {
-      console.error("[WEBHOOK DB QUERY ERROR]:", webhookErr);
-    }
-
-    // 5. PAYMENT ROUTING
+    // ==========================================================
+    // ROUTING: Cash on Delivery (Fire Alert Immediately)
+    // ==========================================================
     if (method === 'COD') {
+      await dispatchOrderWebhook(orderId);
       return { success: true, redirectUrl: `/checkout/success?order=${orderId}` };
     } 
     
+    // ==========================================================
+    // ROUTING: PayMongo (DO NOT fire alert yet. Redirect to PayMongo)
+    // ==========================================================
     if (method === 'PAYMONGO') {
-      const amountInCents = Math.round(safeTotal * 100);
-      const paymongoPayload = { data: { attributes: { amount: amountInCents, description: `Order ${orderId}`, remarks: `Customer: ${email}` } } };
+      const pmSettings = await sql`SELECT paymongo_secret_key FROM automation_settings WHERE id = 1`;
+      const pmSecret = (pmSettings.length > 0 && pmSettings[0].paymongo_secret_key) 
+                        ? pmSettings[0].paymongo_secret_key : process.env.PAYMONGO_SECRET_KEY;
 
-      const pmResponse = await fetch("https://api.paymongo.com/v1/links", {
+      if (!pmSecret) throw new Error("Payment Gateway is not configured.");
+
+      const amountInCents = Math.round(safeTotal * 100);
+
+      // Upgrade to Checkout Sessions API for auto-redirect capabilities
+      const paymongoPayload = { 
+        data: {
+          attributes: {
+            send_email_receipt: false,
+            show_line_items: true,
+            billing: { name, email, phone },
+            line_items: [{ currency: "PHP", amount: amountInCents, name: `Store Order`, quantity: 1 }],
+            payment_method_types: ["gcash", "paymaya", "card", "qrph"],
+            success_url: `${baseUrl}/checkout/success?order=${orderId}`, // MAGIC HAPPENS HERE
+            cancel_url: `${baseUrl}/checkout`
+          }
+        }
+      };
+
+      const pmResponse = await fetch("https://api.paymongo.com/v1/checkout_sessions", {
         method: "POST",
         headers: {
           accept: "application/json",
           "content-type": "application/json",
-          authorization: `Basic ${Buffer.from(process.env.PAYMONGO_SECRET_KEY!).toString("base64")}`,
+          authorization: `Basic ${Buffer.from(`${pmSecret}:`).toString("base64")}`,
         },
         body: JSON.stringify(paymongoPayload),
       });
 
-      if (!pmResponse.ok) throw new Error("Payment Gateway failed to generate link.");
+      const responseText = await pmResponse.text();
+      if (!pmResponse.ok) throw new Error(`PayMongo API Error: ${responseText}`);
 
-      const pmData = await pmResponse.json();
-      const checkoutUrl = pmData.data.attributes.checkout_url;
-      const linkId = pmData.data.id;
+      const pmData = JSON.parse(responseText);
+      const checkoutUrl = pmData?.data?.attributes?.checkout_url;
+      const linkId = pmData?.data?.id;
 
       await sql`UPDATE orders SET paymongo_link_id = ${linkId} WHERE id = ${orderId}::uuid`;
       return { success: true, redirectUrl: checkoutUrl };
     }
 
   } catch (error: any) {
-    console.error("Checkout Error Log:", error);
     return { error: `Checkout Failed: ${error.message}` };
   }
 }

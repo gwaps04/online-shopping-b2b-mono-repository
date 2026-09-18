@@ -11,6 +11,7 @@ export default function CheckoutPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'COD' | 'PAYMONGO'>('COD'); 
+  const [baseUrl, setBaseUrl] = useState(""); // Woz Engine: Added baseUrl state
 
   const [formState, formAction, isPending] = useActionState(processCheckout, undefined);
 
@@ -26,6 +27,7 @@ export default function CheckoutPage() {
 
   useEffect(() => {
     setMounted(true);
+    setBaseUrl(window.location.origin); // Woz Engine: Capture the base URL for PayMongo redirection
     fetch('https://psgc.gitlab.io/api/provinces/')
       .then(res => res.json())
       .then(data => setProvinces(data.sort((a: any, b: any) => a.name.localeCompare(b.name))))
@@ -91,6 +93,7 @@ export default function CheckoutPage() {
             <input type="hidden" name="cart_data" value={JSON.stringify(cart)} />
             <input type="hidden" name="payment_method" value={paymentMethod} />
             <input type="hidden" name="address" value={fullAddress} />
+            <input type="hidden" name="baseUrl" value={baseUrl} /> {/* Woz Engine: Added hidden input for baseUrl */}
 
             {formState?.error && (
               <div className="bg-red-50 text-red-700 p-5 rounded-xl border border-red-200 font-medium flex gap-3 shadow-sm">

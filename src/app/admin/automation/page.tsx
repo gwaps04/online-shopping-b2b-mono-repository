@@ -9,11 +9,13 @@ export default async function AutomationPage() {
     webhook_url: "",
     webhook_secret: "",
     is_active: false,
+    paymongo_secret_key: "",
     updated_at: new Date().toISOString()
   };
 
   try {
-    const data = await sql`SELECT webhook_url, webhook_secret, is_active, updated_at FROM automation_settings WHERE id = 1`;
+    // Woz Fix: Query the new paymongo_secret_key column
+    const data = await sql`SELECT webhook_url, webhook_secret, is_active, paymongo_secret_key, updated_at FROM automation_settings WHERE id = 1`;
     if (data.length > 0) {
       settings = data[0] as any;
     }
@@ -28,7 +30,7 @@ export default async function AutomationPage() {
           <Zap className="w-6 h-6 text-amber-500" /> Automation & Webhooks
         </h2>
         <p className="text-slate-500 mt-1">
-          Connect external workflows (n8n, Make, Telegram, Email alerts) to your order transaction pipeline.
+          Connect external workflows and manage secure Payment Gateway API keys.
         </p>
       </div>
 
