@@ -3,7 +3,7 @@
 import { neon } from "@neondatabase/serverless";
 
 // ============================================================================
-// 1. DEDICATED WEBHOOK DISPATCHER (Fires ONLY when payment is confirmed)
+// 1. DEDICATED WEBHOOK DISPATCHER
 // ============================================================================
 export async function dispatchOrderWebhook(orderId: string) {
   const sql = neon(process.env.DATABASE_URL!);
@@ -30,12 +30,14 @@ export async function dispatchOrderWebhook(orderId: string) {
       store: "Store Mono E-Commerce",
       data: {
         order_id: order.id,
+        tracking_number: order.tracking_number, 
         customer_name: order.customer_name,
         customer_email: order.customer_email,
         customer_phone: order.customer_phone,
         shipping_address: order.shipping_address,
         payment_method: order.payment_method,
         payment_status: order.payment_status,
+        fulfillment_status: order.fulfillment_status,
         total_amount: Number(order.total_amount),
         currency: currency,
         items: items.map(vi => ({
@@ -66,7 +68,7 @@ export async function dispatchOrderWebhook(orderId: string) {
 }
 
 // ============================================================================
-// 2. SUCCESS PAGE VERIFICATION (Validates PayMongo Status)
+// 2. SUCCESS PAGE VERIFICATION
 // ============================================================================
 export async function verifyOrderPayment(orderId: string) {
   const sql = neon(process.env.DATABASE_URL!);
@@ -75,10 +77,7 @@ export async function verifyOrderPayment(orderId: string) {
     if (orders.length === 0) return { success: false, error: "Order not found." };
     const order = orders[0];
 
-    // If COD, it is verified immediately.
     if (order.payment_method === 'COD') return { success: true };
-
-    // Woz Guard: If already marked paid, DO NOT fire the webhook again.
     if (order.payment_status === 'paid') return { success: true };
 
     if (order.payment_method === 'PAYMONGO' && order.paymongo_link_id) {
@@ -98,13 +97,12 @@ export async function verifyOrderPayment(orderId: string) {
         if (!pmResponse.ok) throw new Error("Failed to verify payment with gateway.");
         const pmData = await pmResponse.json();
 
-        // Check if the session contains a successful payment
         const payments = pmData.data?.attributes?.payments || [];
         const isPaid = payments.some((p: any) => p.attributes.status === 'paid');
 
         if (isPaid) {
             await sql`UPDATE orders SET payment_status = 'paid' WHERE id = ${orderId}::uuid`;
-            await dispatchOrderWebhook(orderId); // FIRE ALERT ONLY NOW!
+            await dispatchOrderWebhook(orderId);
             return { success: true };
         } else {
             return { success: false, error: "Payment has not been completed yet." };
@@ -128,7 +126,7 @@ export async function processCheckout(prevState: any, formData: FormData) {
   const address = formData.get("address") as string;
   const method = formData.get("payment_method") as string;
   const cartDataRaw = formData.get("cart_data") as string;
-  const baseUrl = formData.get("baseUrl") as string; // Required for Callback routing
+  const baseUrl = formData.get("baseUrl") as string; 
 
   if (!name || !email || !phone || !address || !cartDataRaw || !baseUrl) {
     return { error: "Please fill out all required fields." };
@@ -163,10 +161,17 @@ export async function processCheckout(prevState: any, formData: FormData) {
     }
 
     const safeTotal = Math.round(verifiedTotal * 100) / 100;
+    const generatedTracking = 'TRK-' + Math.random().toString(36).substring(2, 10).toUpperCase() + Math.random().toString(36).substring(2, 4).toUpperCase();
 
     const orderResult = await sql`
-      INSERT INTO orders (customer_name, customer_email, customer_phone, shipping_address, payment_method, total_amount)
-      VALUES (${name}, ${email}, ${phone}, ${address}, ${method}, ${safeTotal})
+      INSERT INTO orders (
+        customer_name, customer_email, customer_phone, shipping_address, 
+        payment_method, total_amount, tracking_number, fulfillment_status
+      )
+      VALUES (
+        ${name}, ${email}, ${phone}, ${address}, 
+        ${method}, ${safeTotal}, ${generatedTracking}, 'processing'
+      )
       RETURNING id
     `;
     const orderId = orderResult[0].id;
@@ -179,17 +184,11 @@ export async function processCheckout(prevState: any, formData: FormData) {
       await sql`UPDATE products SET stock = COALESCE(stock, 0) - ${vItem.quantity}::integer WHERE id = ${vItem.product_id}::integer`;
     }
 
-    // ==========================================================
-    // ROUTING: Cash on Delivery (Fire Alert Immediately)
-    // ==========================================================
     if (method === 'COD') {
       await dispatchOrderWebhook(orderId);
-      return { success: true, redirectUrl: `/checkout/success?order=${orderId}` };
+      return { success: true, redirectUrl: `/checkout/success?order=${orderId}`, method: 'COD' };
     } 
     
-    // ==========================================================
-    // ROUTING: PayMongo (DO NOT fire alert yet. Redirect to PayMongo)
-    // ==========================================================
     if (method === 'PAYMONGO') {
       const pmSettings = await sql`SELECT paymongo_secret_key FROM automation_settings WHERE id = 1`;
       const pmSecret = (pmSettings.length > 0 && pmSettings[0].paymongo_secret_key) 
@@ -199,16 +198,22 @@ export async function processCheckout(prevState: any, formData: FormData) {
 
       const amountInCents = Math.round(safeTotal * 100);
 
-      // Upgrade to Checkout Sessions API for auto-redirect capabilities
       const paymongoPayload = { 
         data: {
           attributes: {
             send_email_receipt: false,
             show_line_items: true,
+            reference_number: orderId,
+            description: `Order ${orderId} | Trk: ${generatedTracking}`,
             billing: { name, email, phone },
-            line_items: [{ currency: "PHP", amount: amountInCents, name: `Store Order`, quantity: 1 }],
+            line_items: [{ 
+              currency: "PHP", 
+              amount: amountInCents, 
+              name: `Order ${orderId.split('-')[0].toUpperCase()}`, 
+              quantity: 1 
+            }],
             payment_method_types: ["gcash", "paymaya", "card", "qrph"],
-            success_url: `${baseUrl}/checkout/success?order=${orderId}`, // MAGIC HAPPENS HERE
+            success_url: `${baseUrl}/checkout/success?order=${orderId}`, 
             cancel_url: `${baseUrl}/checkout`
           }
         }
@@ -232,7 +237,7 @@ export async function processCheckout(prevState: any, formData: FormData) {
       const linkId = pmData?.data?.id;
 
       await sql`UPDATE orders SET paymongo_link_id = ${linkId} WHERE id = ${orderId}::uuid`;
-      return { success: true, redirectUrl: checkoutUrl };
+      return { success: true, redirectUrl: checkoutUrl, method: 'PAYMONGO' };
     }
 
   } catch (error: any) {

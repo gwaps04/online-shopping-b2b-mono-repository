@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { CheckCircle2, Loader2, AlertCircle, ShoppingBag, ArrowRight } from 'lucide-react';
 import { verifyOrderPayment } from '../actions';
 import Link from 'next/link';
+import { useCart } from '@/lib/CartContext'; // Woz Fix: Import cart context
 
 function SuccessContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get('order');
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [errorMsg, setErrorMsg] = useState('');
+  
+  const { clearCart } = useCart(); // Woz Fix: Initialize clearCart
 
   useEffect(() => {
     if (!orderId) {
@@ -19,16 +22,16 @@ function SuccessContent() {
       return;
     }
 
-    // Woz Engine: Hit the server to verify the PayMongo transaction status!
     verifyOrderPayment(orderId).then(res => {
       if (res?.success) {
         setStatus('success');
+        clearCart(); // Woz Fix: The payment is 100% verified. Clear the cart safely!
       } else {
         setStatus('error');
         setErrorMsg(res?.error || "Payment verification failed.");
       }
     });
-  }, [orderId]);
+  }, [orderId, clearCart]);
 
   if (status === 'loading') {
     return (

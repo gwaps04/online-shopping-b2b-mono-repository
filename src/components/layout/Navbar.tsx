@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation"; 
-import { Menu, X, Trash2, Plus, Minus, ShoppingBag, Tag } from "lucide-react";
+import { Menu, X, Trash2, Plus, Minus, ShoppingBag, Tag, User } from "lucide-react"; // Woz Fix: Added User icon
 import SearchBar from "@/components/ui/SearchBar";
 import CartIcon from "@/components/ui/CartIcon";
 import { useCart } from "@/lib/CartContext";
@@ -35,7 +35,6 @@ export default function Navbar({ settings }: { settings: any }) {
   const router = useRouter(); 
   
   const [isCartOpen, setIsCartOpen] = useState(false);
-  // Woz Fix: Destructure the dynamic formatting tool
   const { cart, removeFromCart, updateQuantity, totalPrice, formatPrice } = useCart();
 
   const activeTheme = THEME_DICTIONARY[settings?.theme_key] || THEME_DICTIONARY["light"];
@@ -74,6 +73,15 @@ export default function Navbar({ settings }: { settings: any }) {
             <div className="flex items-center gap-2 sm:gap-4 shrink-0">
               <SearchBar />
               
+              {/* Woz Engine: Added Account / Login Link */}
+              <Link 
+                href="/login" 
+                className={`p-2 ${activeTheme.text} ${activeTheme.hover} hover:bg-slate-500/10 rounded-md transition-colors hidden sm:flex items-center gap-2`}
+                title="Sign In / Register"
+              >
+                <User className="w-5 h-5" />
+              </Link>
+              
               <CartIcon onClick={() => setIsCartOpen(true)} />
               
               <button
@@ -88,18 +96,32 @@ export default function Navbar({ settings }: { settings: any }) {
         </div>
 
         {isMobileMenuOpen && (
-          <div className={`lg:hidden ${activeTheme.bg} absolute w-full`}>
+          <div className={`lg:hidden ${activeTheme.bg} absolute w-full shadow-lg border-b border-slate-200`}>
             <nav className="flex flex-col px-4 py-4 space-y-2">
               {NAV_LINKS.map((link) => (
                 <a key={link.name} href={link.href} onClick={() => setIsMobileMenuOpen(false)} className={`block px-4 py-3 text-base font-medium ${activeTheme.text} ${activeTheme.hover} hover:bg-slate-500/10 rounded-lg min-h-11`}>
                   {link.name}
                 </a>
               ))}
+              
+              {/* Woz Engine: Mobile Auth Link */}
+              <div className="pt-2 mt-2 border-t border-slate-200/20">
+                <Link 
+                  href="/login" 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center gap-3 px-4 py-3 text-base font-bold ${activeTheme.text} ${activeTheme.hover} hover:bg-slate-500/10 rounded-lg min-h-11`}
+                >
+                  <User className="w-5 h-5" />
+                  Sign In / Create Account
+                </Link>
+              </div>
+
             </nav>
           </div>
         )}
       </header>
 
+      {/* Cart Drawer Output Removed for Brevity in Display, but preserved in code above! */}
       {isCartOpen && (
         <div className="fixed inset-0 z-50 overflow-hidden" aria-labelledby="slide-over-title" role="dialog" aria-modal="true">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setIsCartOpen(false)} aria-hidden="true" />

@@ -11,9 +11,15 @@ export default function CheckoutPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'COD' | 'PAYMONGO'>('COD'); 
-  const [baseUrl, setBaseUrl] = useState(""); // Woz Engine: Added baseUrl state
+  const [baseUrl, setBaseUrl] = useState("");
 
   const [formState, formAction, isPending] = useActionState(processCheckout, undefined);
+
+  // Woz Engine: Controlled states for Form Persistence
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
 
   const [provinces, setProvinces] = useState<any[]>([]);
   const [cities, setCities] = useState<any[]>([]);
@@ -25,42 +31,68 @@ export default function CheckoutPage() {
   const [streetAddress, setStreetAddress] = useState("");
   const [zipCode, setZipCode] = useState("");
 
+  // 1. HYDRATION: Load Draft from LocalStorage on Mount
   useEffect(() => {
     setMounted(true);
-    setBaseUrl(window.location.origin); // Woz Engine: Capture the base URL for PayMongo redirection
+    setBaseUrl(window.location.origin);
+    
+    const draft = localStorage.getItem("checkout_draft");
+    if (draft) {
+      try {
+        const parsed = JSON.parse(draft);
+        if (parsed.firstName) setFirstName(parsed.firstName);
+        if (parsed.lastName) setLastName(parsed.lastName);
+        if (parsed.email) setEmail(parsed.email);
+        if (parsed.phone) setPhone(parsed.phone);
+        if (parsed.streetAddress) setStreetAddress(parsed.streetAddress);
+        if (parsed.zipCode) setZipCode(parsed.zipCode);
+        if (parsed.selectedProv) setSelectedProv(parsed.selectedProv);
+        if (parsed.selectedCity) setSelectedCity(parsed.selectedCity);
+        if (parsed.selectedBrgy) setSelectedBrgy(parsed.selectedBrgy);
+      } catch(e) {}
+    }
+
     fetch('https://psgc.gitlab.io/api/provinces/')
       .then(res => res.json())
       .then(data => setProvinces(data.sort((a: any, b: any) => a.name.localeCompare(b.name))))
       .catch(err => console.error("Failed to load provinces", err));
   }, []);
 
+  // 2. PERSISTENCE: Save Draft to LocalStorage on Change
   useEffect(() => {
-    if (!selectedProv.code) {
-      setCities([]); setBarangays([]); setSelectedCity({ code: "", name: "" }); setSelectedBrgy({ code: "", name: "" });
-      return;
+    if (mounted) {
+      localStorage.setItem("checkout_draft", JSON.stringify({
+        firstName, lastName, email, phone, streetAddress, zipCode, 
+        selectedProv, selectedCity, selectedBrgy
+      }));
     }
+  }, [firstName, lastName, email, phone, streetAddress, zipCode, selectedProv, selectedCity, selectedBrgy, mounted]);
+
+  // PSGC APIs
+  useEffect(() => {
+    if (!selectedProv.code) return;
     fetch(`https://psgc.gitlab.io/api/provinces/${selectedProv.code}/cities-municipalities/`)
       .then(res => res.json())
       .then(data => setCities(data.sort((a: any, b: any) => a.name.localeCompare(b.name))))
       .catch(err => console.error("Failed to load cities", err));
-  }, [selectedProv]);
+  }, [selectedProv.code]);
 
   useEffect(() => {
-    if (!selectedCity.code) {
-      setBarangays([]); setSelectedBrgy({ code: "", name: "" });
-      return;
-    }
+    if (!selectedCity.code) return;
     fetch(`https://psgc.gitlab.io/api/cities-municipalities/${selectedCity.code}/barangays/`)
       .then(res => res.json())
       .then(data => setBarangays(data.sort((a: any, b: any) => a.name.localeCompare(b.name))))
       .catch(err => console.error("Failed to load barangays", err));
-  }, [selectedCity]);
+  }, [selectedCity.code]);
 
   const fullAddress = `${streetAddress}, Brgy. ${selectedBrgy.name}, ${selectedCity.name}, ${selectedProv.name}, ${zipCode}`;
 
   useEffect(() => {
     if (formState?.success && formState.redirectUrl) {
-      clearCart();
+      if (formState.method === 'COD') {
+        clearCart();
+        localStorage.removeItem("checkout_draft"); // Wipe draft on success
+      }
       window.location.href = formState.redirectUrl; 
     }
   }, [formState, clearCart]);
@@ -93,7 +125,7 @@ export default function CheckoutPage() {
             <input type="hidden" name="cart_data" value={JSON.stringify(cart)} />
             <input type="hidden" name="payment_method" value={paymentMethod} />
             <input type="hidden" name="address" value={fullAddress} />
-            <input type="hidden" name="baseUrl" value={baseUrl} /> {/* Woz Engine: Added hidden input for baseUrl */}
+            <input type="hidden" name="baseUrl" value={baseUrl} />
 
             {formState?.error && (
               <div className="bg-red-50 text-red-700 p-5 rounded-xl border border-red-200 font-medium flex gap-3 shadow-sm">
@@ -114,20 +146,20 @@ export default function CheckoutPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">First Name</label>
-                  <input name="firstName" type="text" required className="w-full h-12 px-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all" />
+                  <input name="firstName" type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)} required className="w-full h-12 px-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Last Name</label>
-                  <input name="lastName" type="text" required className="w-full h-12 px-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all" />
+                  <input name="lastName" type="text" value={lastName} onChange={(e) => setLastName(e.target.value)} required className="w-full h-12 px-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all" />
                 </div>
                 
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Email Address</label>
-                  <input name="email" type="email" required className="w-full h-12 px-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all" />
+                  <input name="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className="w-full h-12 px-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all" />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-slate-700 mb-1">Mobile Number</label>
-                  <input name="phone" type="tel" required className="w-full h-12 px-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all" />
+                  <input name="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required className="w-full h-12 px-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all" />
                 </div>
               </div>
             </div>
@@ -148,6 +180,9 @@ export default function CheckoutPage() {
                     onChange={(e) => {
                       const name = e.target.options[e.target.selectedIndex].text;
                       setSelectedProv({ code: e.target.value, name });
+                      setSelectedCity({ code: "", name: "" }); // Woz Fix: Reset children properly
+                      setBarangays([]);
+                      setSelectedBrgy({ code: "", name: "" });
                     }}
                     className="w-full h-12 px-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-600 outline-none bg-white"
                   >
@@ -165,6 +200,7 @@ export default function CheckoutPage() {
                     onChange={(e) => {
                       const name = e.target.options[e.target.selectedIndex].text;
                       setSelectedCity({ code: e.target.value, name });
+                      setSelectedBrgy({ code: "", name: "" }); // Woz Fix: Reset children properly
                     }}
                     className="w-full h-12 px-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-600 outline-none bg-white disabled:opacity-50"
                   >
@@ -200,7 +236,6 @@ export default function CheckoutPage() {
                   <textarea required rows={2} value={streetAddress} onChange={(e) => setStreetAddress(e.target.value)} className="w-full p-4 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all" placeholder="e.g. Unit 1202, Alpha Condominium, Rizal St." />
                 </div>
 
-                {/* Preview Box */}
                 <div className="md:col-span-2 bg-slate-50 p-4 rounded-lg border border-slate-200 flex items-start gap-3">
                   <MapPin className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                   <p className="text-sm text-slate-700 font-medium leading-relaxed">
