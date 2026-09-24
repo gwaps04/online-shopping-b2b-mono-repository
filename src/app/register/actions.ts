@@ -78,12 +78,11 @@ export async function processRegistration(prevState: any, formData: FormData) {
         const origin = headersList.get('origin') || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
         const verificationLink = `${origin}/verify?token=${verifyToken}`;
 
-        // Woz Engine: Developer Workaround to bypass n8n email delays during testing
         console.log('\n====================================================================');
         console.log('🚀 [WOZ DEV BYPASS] NEW USER REGISTERED!');
         console.log(`📧 User: ${email}`);
         console.log('🔗 CLICK THIS LINK TO VERIFY THE ACCOUNT:');
-        console.log(`\x1b[36m%s\x1b[0m`, verificationLink); // Prints in cyan color
+        console.log(`\x1b[36m%s\x1b[0m`, verificationLink);
         console.log('====================================================================\n');
 
         const webhookPayload = {
@@ -102,13 +101,13 @@ export async function processRegistration(prevState: any, formData: FormData) {
           fetchHeaders["X-Webhook-Secret"] = autoSettings[0].webhook_secret;
         }
 
-        // Fire and forget webhook
-        fetch(autoSettings[0].webhook_url, {
+        // Woz Fix: Added explicit 'await' so Vercel keeps the function alive until n8n receives the payload
+        await fetch(autoSettings[0].webhook_url, {
           method: "POST",
           headers: fetchHeaders,
           body: JSON.stringify(webhookPayload),
           signal: AbortSignal.timeout(5000)
-        }).catch(err => console.error("[n8n Webhook Error] - Payload failed to send:", err.message));
+        });
       }
     } catch (webhookError) {
       console.error("Failed to trigger registration webhook", webhookError);
@@ -121,3 +120,10 @@ export async function processRegistration(prevState: any, formData: FormData) {
     return { error: "An unexpected server error occurred. Please try again." };
   }
 }
+// Woz Fix: Added explicit 'await' so Vercel keeps the function alive until n8n receives the payload
+        await fetch(autoSettings[0].webhook_url, {
+          method: "POST",
+          headers: fetchHeaders,
+          body: JSON.stringify(webhookPayload),
+          signal: AbortSignal.timeout(5000)
+        }).catch(err => console.error("[n8n Webhook Error] - Payload failed to send:", err.message));
