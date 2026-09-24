@@ -107,7 +107,7 @@ export async function processRegistration(prevState: any, formData: FormData) {
           headers: fetchHeaders,
           body: JSON.stringify(webhookPayload),
           signal: AbortSignal.timeout(5000)
-        });
+        }).catch(err => console.error("[n8n Webhook Error] - Payload failed to send:", err.message));
       }
     } catch (webhookError) {
       console.error("Failed to trigger registration webhook", webhookError);
@@ -120,10 +120,3 @@ export async function processRegistration(prevState: any, formData: FormData) {
     return { error: "An unexpected server error occurred. Please try again." };
   }
 }
-// Woz Fix: Added explicit 'await' so Vercel keeps the function alive until n8n receives the payload
-        await fetch(autoSettings[0].webhook_url, {
-          method: "POST",
-          headers: fetchHeaders,
-          body: JSON.stringify(webhookPayload),
-          signal: AbortSignal.timeout(5000)
-        }).catch(err => console.error("[n8n Webhook Error] - Payload failed to send:", err.message));
