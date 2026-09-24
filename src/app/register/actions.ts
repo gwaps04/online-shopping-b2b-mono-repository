@@ -120,3 +120,6 @@ export async function processRegistration(prevState: any, formData: FormData) {
     return { error: "An unexpected server error occurred. Please try again." };
   }
 }
+
+
+ // just a test.
