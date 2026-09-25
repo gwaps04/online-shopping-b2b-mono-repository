@@ -1,6 +1,7 @@
 "use server";
 
 import { neon } from "@neondatabase/serverless";
+import { cookies } from "next/headers"; // Woz Fix: Added cookies import
 
 // ============================================================================
 // 1. DEDICATED WEBHOOK DISPATCHER
@@ -117,6 +118,12 @@ export async function verifyOrderPayment(orderId: string) {
 // 3. THE CHECKOUT PROCESSOR
 // ============================================================================
 export async function processCheckout(prevState: any, formData: FormData) {
+  // Woz Guard: Zero-Trust Backend Verification
+  const cookieStore = await cookies();
+  if (!cookieStore.has("store_session")) {
+    return { error: "Security Halt: You must create an account or log in to process a checkout." };
+  }
+
   const firstName = formData.get("firstName") as string || "";
   const lastName = formData.get("lastName") as string || "";
   const name = `${firstName.trim()} ${lastName.trim()}`.trim();

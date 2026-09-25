@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { Inter, Montserrat } from "next/font/google";
 import { neon } from "@neondatabase/serverless";
+import { cookies } from "next/headers";
 import "./globals.css";
-import Navbar from "@/components/layout/Navbar";
+import Navbar from "@/components/layout/Navbar"; // Ensure your path matches your project structure
 import Footer from "@/components/layout/Footer";
 import { CartProvider } from "@/lib/CartContext";
 
@@ -20,26 +21,44 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   let storeCurrency = "USD"; // Default fallback
   
   try {
-    // Woz Data Pipeline: Fetch both global settings and product settings simultaneously
     const [globalData, prodData] = await Promise.all([
       sql`SELECT * FROM global_settings WHERE id = 1`,
-      sql`SELECT currency FROM product_settings WHERE id = 1` // Get the selected currency
+      sql`SELECT currency FROM product_settings WHERE id = 1`
     ]);
     
     if (globalData.length > 0) navSettings = globalData[0] as any;
     if (prodData.length > 0) storeCurrency = prodData[0].currency;
-
   } catch (e) {
     console.error("Settings Table missing or error fetching data");
+  }
+
+  // Woz Engine: Identity Hydration
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get("store_session");
+  
+  let isLoggedIn = false;
+  let firstName = "";
+
+  // If the secure cookie exists, fetch the user's name
+  if (sessionCookie?.value) {
+    try {
+      const userRes = await sql`SELECT first_name FROM users WHERE id = ${sessionCookie.value}`;
+      if (userRes.length > 0) {
+        isLoggedIn = true;
+        firstName = userRes[0].first_name;
+      }
+    } catch (e) {
+      console.error("Failed to fetch user session data:", e);
+    }
   }
 
   return (
     <html lang="en" className={`${inter.variable} ${montserrat.variable}`}>
       <body className="font-sans antialiased bg-white text-slate-900 min-h-screen flex flex-col">
-        
-        {/* Woz Engine: Inject the database currency into the Global State Provider */}
         <CartProvider activeCurrency={storeCurrency}>
-          <Navbar settings={navSettings} />
+          
+          {/* Woz Engine: Pass both the auth state AND the name to the Navbar */}
+          <Navbar settings={navSettings} isLoggedIn={isLoggedIn} firstName={firstName} />
           
           <main className="grow pt-18"> 
             {children}
@@ -47,7 +66,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           
           <Footer />
         </CartProvider>
-        
       </body>
     </html>
   );

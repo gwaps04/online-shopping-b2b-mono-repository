@@ -1,12 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation"; 
-import { Menu, X, Trash2, Plus, Minus, ShoppingBag, Tag, User } from "lucide-react"; // Woz Fix: Added User icon
+import { 
+  Menu, X, Trash2, Plus, Minus, ShoppingBag, Tag, 
+  User, Settings, LogOut, Package, ChevronDown, 
+  AlertCircle, ExternalLink 
+} from "lucide-react";
 import SearchBar from "@/components/ui/SearchBar";
 import CartIcon from "@/components/ui/CartIcon";
 import { useCart } from "@/lib/CartContext";
+import { logoutUser } from "@/app/actions/auth";
 
 const THEME_DICTIONARY: Record<string, { bg: string, text: string, hover: string }> = {
   "light": { bg: "bg-white/90 backdrop-blur-md border-b border-slate-100 shadow-sm", text: "text-slate-900", hover: "hover:text-blue-600" },
@@ -26,21 +31,31 @@ const NAV_LINKS = [
   { name: "Categories", href: "/#categories" },
   { name: "Products", href: "/#products" },
   { name: "About Us", href: "/#about" },
-  { name: "FAQs", href: "/#faqs" },
-  { name: "Contact", href: "/#contact" },
 ];
 
-export default function Navbar({ settings }: { settings: any }) {
+export default function Navbar({ settings, isLoggedIn = false, firstName = "" }: { settings: any, isLoggedIn?: boolean, firstName?: string }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const router = useRouter(); 
   
   const [isCartOpen, setIsCartOpen] = useState(false);
   const { cart, removeFromCart, updateQuantity, totalPrice, formatPrice } = useCart();
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const activeTheme = THEME_DICTIONARY[settings?.theme_key] || THEME_DICTIONARY["light"];
   const fontFamily = FONT_DICTIONARY[settings?.font_key] || FONT_DICTIONARY["display"];
   const companyName = settings?.company_name || "STORE.";
   const logoUrl = settings?.logo_url;
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleProceedToCheckout = () => {
     setIsCartOpen(false); 
@@ -73,14 +88,63 @@ export default function Navbar({ settings }: { settings: any }) {
             <div className="flex items-center gap-2 sm:gap-4 shrink-0">
               <SearchBar />
               
-              {/* Woz Engine: Added Account / Login Link */}
-              <Link 
-                href="/login" 
-                className={`p-2 ${activeTheme.text} ${activeTheme.hover} hover:bg-slate-500/10 rounded-md transition-colors hidden sm:flex items-center gap-2`}
-                title="Sign In / Register"
-              >
-                <User className="w-5 h-5" />
-              </Link>
+              {isLoggedIn ? (
+                <div className="relative hidden sm:block" ref={dropdownRef}>
+                  <button 
+                    onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                    className={`flex items-center gap-2 p-2 px-3 text-emerald-700 hover:bg-emerald-500/10 rounded-lg transition-colors border border-transparent ${isUserMenuOpen ? 'bg-emerald-500/10 border-emerald-500/20' : ''}`}
+                    aria-expanded={isUserMenuOpen}
+                  >
+                    <User className="w-5 h-5 fill-emerald-600/20 text-emerald-600" />
+                    <span className="text-sm font-bold truncate max-w-[100px]">Hi, {firstName}</span>
+                    <ChevronDown className={`w-4 h-4 text-emerald-600 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {isUserMenuOpen && (
+                    <div className="absolute right-0 mt-2 w-60 bg-white rounded-xl shadow-xl shadow-slate-200/50 border border-slate-100 py-2 z-50 animate-in fade-in slide-in-from-top-2">
+                      <div className="px-4 py-2 border-b border-slate-100 mb-1">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Account</p>
+                      </div>
+                      
+                      {/* OPENS MY PROFILE IN A NEW TAB */}
+                      <Link 
+                        href="/account" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        onClick={() => setIsUserMenuOpen(false)} 
+                        className="flex items-center justify-between px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors group"
+                      >
+                        <span className="flex items-center gap-3">
+                          <User className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors" /> 
+                          My Profile
+                        </span>
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-300 group-hover:text-blue-600 transition-colors" />
+                      </Link>
+
+                      <Link href="/orders" onClick={() => setIsUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors">
+                        <Package className="w-4 h-4 text-slate-400" /> My Orders
+                      </Link>
+                      <Link href="/settings" onClick={() => setIsUserMenuOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors">
+                        <Settings className="w-4 h-4 text-slate-400" /> Settings
+                      </Link>
+                      <div className="border-t border-slate-100 my-1"></div>
+                      <form action={logoutUser}>
+                        <button type="submit" className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 transition-colors">
+                          <LogOut className="w-4 h-4" /> Sign Out
+                        </button>
+                      </form>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link 
+                  href="/login" 
+                  className={`p-2 ${activeTheme.text} ${activeTheme.hover} hover:bg-slate-500/10 rounded-md transition-colors hidden sm:flex items-center gap-2`}
+                  title="Sign In / Register"
+                >
+                  <User className="w-5 h-5" />
+                </Link>
+              )}
               
               <CartIcon onClick={() => setIsCartOpen(true)} />
               
@@ -95,8 +159,9 @@ export default function Navbar({ settings }: { settings: any }) {
           </div>
         </div>
 
+        {/* Mobile Navigation Drawer */}
         {isMobileMenuOpen && (
-          <div className={`lg:hidden ${activeTheme.bg} absolute w-full shadow-lg border-b border-slate-200`}>
+          <div className={`lg:hidden ${activeTheme.bg} absolute w-full shadow-xl border-b border-slate-200 max-h-[calc(100vh-4.5rem)] overflow-y-auto`}>
             <nav className="flex flex-col px-4 py-4 space-y-2">
               {NAV_LINKS.map((link) => (
                 <a key={link.name} href={link.href} onClick={() => setIsMobileMenuOpen(false)} className={`block px-4 py-3 text-base font-medium ${activeTheme.text} ${activeTheme.hover} hover:bg-slate-500/10 rounded-lg min-h-11`}>
@@ -104,113 +169,57 @@ export default function Navbar({ settings }: { settings: any }) {
                 </a>
               ))}
               
-              {/* Woz Engine: Mobile Auth Link */}
-              <div className="pt-2 mt-2 border-t border-slate-200/20">
-                <Link 
-                  href="/login" 
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 text-base font-bold ${activeTheme.text} ${activeTheme.hover} hover:bg-slate-500/10 rounded-lg min-h-11`}
-                >
-                  <User className="w-5 h-5" />
-                  Sign In / Create Account
-                </Link>
-              </div>
+              <div className="pt-4 mt-2 border-t border-slate-200/20">
+                {isLoggedIn ? (
+                  <div className="flex flex-col space-y-1 bg-slate-50/50 p-2 rounded-xl">
+                    <div className="px-3 py-2 mb-1">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Logged in as</p>
+                      <p className="text-lg font-bold text-emerald-700 truncate">Hi, {firstName}</p>
+                    </div>
 
+                    {/* OPENS MY PROFILE IN A NEW TAB ON MOBILE */}
+                    <Link 
+                      href="/account" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      onClick={() => setIsMobileMenuOpen(false)} 
+                      className="flex items-center justify-between px-3 py-3 text-base font-bold text-slate-700 hover:bg-slate-200/50 rounded-lg"
+                    >
+                      <span className="flex items-center gap-3">
+                        <User className="w-5 h-5 text-slate-400" /> My Profile
+                      </span>
+                      <span className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                        New Tab <ExternalLink className="w-3.5 h-3.5" />
+                      </span>
+                    </Link>
+
+                    <Link href="/orders" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-3 px-3 py-3 text-base font-bold text-slate-700 hover:bg-slate-200/50 rounded-lg">
+                      <Package className="w-5 h-5 text-slate-400" /> My Orders
+                    </Link>
+                    <Link href="/settings" onClick={() => setIsMobileMenuOpen(false)} className="flex items-center gap-3 px-3 py-3 text-base font-bold text-slate-700 hover:bg-slate-200/50 rounded-lg">
+                      <Settings className="w-5 h-5 text-slate-400" /> Settings
+                    </Link>
+                    <form action={logoutUser} className="w-full mt-2">
+                      <button type="submit" className="w-full flex items-center gap-3 px-3 py-3 text-base font-bold text-red-600 hover:bg-red-100 rounded-lg border border-red-100">
+                        <LogOut className="w-5 h-5" /> Sign Out
+                      </button>
+                    </form>
+                  </div>
+                ) : (
+                  <Link 
+                    href="/login" 
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-3 text-base font-bold ${activeTheme.text} ${activeTheme.hover} hover:bg-slate-500/10 rounded-lg min-h-11`}
+                  >
+                    <User className="w-5 h-5" />
+                    Sign In / Create Account
+                  </Link>
+                )}
+              </div>
             </nav>
           </div>
         )}
       </header>
-
-      {/* Cart Drawer Output Removed for Brevity in Display, but preserved in code above! */}
-      {isCartOpen && (
-        <div className="fixed inset-0 z-50 overflow-hidden" aria-labelledby="slide-over-title" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" onClick={() => setIsCartOpen(false)} aria-hidden="true" />
-
-          <div className="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10">
-            <div className="pointer-events-auto w-screen max-w-md transform transition-transform duration-500 ease-in-out">
-              <div className="flex h-full flex-col bg-white shadow-2xl">
-                
-                <div className="flex items-start justify-between p-6 border-b border-slate-100">
-                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                    <ShoppingBag className="w-5 h-5" /> Your Cart
-                  </h2>
-                  <button onClick={() => setIsCartOpen(false)} className="rounded-md text-slate-400 hover:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 p-2">
-                    <X className="h-6 w-6" />
-                  </button>
-                </div>
-
-                <div className="flex-1 overflow-y-auto px-6 py-6 sm:px-6">
-                  {cart.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full opacity-50 space-y-4">
-                      <ShoppingBag className="w-16 h-16 text-slate-300" />
-                      <p className="text-lg font-medium text-slate-500">Your cart is empty.</p>
-                    </div>
-                  ) : (
-                    <ul role="list" className="-my-6 divide-y divide-slate-100">
-                      {cart.map((item) => (
-                        <li key={item.id} className="flex py-6">
-                          <div className="h-24 w-24 shrink-0 overflow-hidden rounded-md border border-slate-200 bg-slate-50 flex items-center justify-center p-2">
-                            {item.image ? <img src={item.image} alt={item.title} className="h-full w-full object-contain object-center" /> : <Tag className="w-8 h-8 text-slate-300" />}
-                          </div>
-
-                          <div className="ml-4 flex flex-1 flex-col justify-between">
-                            <div>
-                              <div className="flex justify-between text-base font-semibold text-slate-900">
-                                <h3><Link href={`/product/${item.slug}`} onClick={() => setIsCartOpen(false)} className="hover:text-blue-600 transition-colors">{item.title}</Link></h3>
-                                {/* Woz Dynamic Currency Render */}
-                                <p className="ml-4 font-mono">{formatPrice(item.price * item.quantity)}</p>
-                              </div>
-                            </div>
-                            
-                            <div className="flex flex-1 items-end justify-between text-sm">
-                              <div className="flex items-center border border-slate-200 rounded-md bg-slate-50">
-                                <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="p-1 hover:bg-slate-200 text-slate-600 transition-colors"><Minus className="w-4 h-4" /></button>
-                                <span className="w-8 text-center font-semibold text-slate-900">{item.quantity}</span>
-                                <button onClick={() => updateQuantity(item.id, item.quantity + 1)} disabled={item.quantity >= 10} className="p-1 hover:bg-slate-200 text-slate-600 transition-colors disabled:opacity-50"><Plus className="w-4 h-4" /></button>
-                              </div>
-
-                              <button type="button" onClick={() => removeFromCart(item.id)} className="font-medium text-red-600 hover:text-red-500 p-2 hover:bg-red-50 rounded-md transition-colors flex items-center gap-1">
-                                <Trash2 className="w-4 h-4" /> Remove
-                              </button>
-                            </div>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-
-                {cart.length > 0 && (
-                  <div className="border-t border-slate-100 px-6 py-6 sm:px-6 bg-slate-50">
-                    <div className="flex justify-between text-lg font-bold text-slate-900 mb-2">
-                      <p>Subtotal</p>
-                      {/* Woz Dynamic Currency Render */}
-                      <p className="font-mono">{formatPrice(totalPrice)}</p>
-                    </div>
-                    <p className="mt-0.5 text-sm text-slate-500 mb-6">Shipping and taxes calculated at checkout.</p>
-                    <div className="mt-6">
-                      <button 
-                        onClick={handleProceedToCheckout}
-                        className="flex w-full items-center justify-center rounded-md border border-transparent bg-slate-900 px-6 py-4 text-base font-bold text-white shadow-sm hover:bg-slate-800 transition-colors"
-                      >
-                        Proceed to Checkout
-                      </button>
-                    </div>
-                    <div className="mt-6 flex justify-center text-center text-sm text-slate-500">
-                      <p>
-                        or{' '}
-                        <button type="button" onClick={() => setIsCartOpen(false)} className="font-medium text-blue-600 hover:text-blue-500">
-                          Continue Shopping <span aria-hidden="true"> &rarr;</span>
-                        </button>
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }
