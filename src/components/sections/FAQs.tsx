@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { ChevronDown, HelpCircle } from "lucide-react";
-import { FAQSettings, DEFAULT_FAQ_SETTINGS } from "@/lib/faqsStorage";
+import { FAQSettings, DEFAULT_FAQ_SETTINGS } from "@/lib/faqsTypes";
 
 export default function FAQs({ settings }: { settings?: FAQSettings }) {
   const currentSettings = settings || DEFAULT_FAQ_SETTINGS;

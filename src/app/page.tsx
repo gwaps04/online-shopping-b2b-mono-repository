@@ -6,6 +6,7 @@ import FAQs from "@/components/sections/FAQs";
 import Contact from "@/components/sections/Contact";
 import { getAboutSettings } from "@/lib/aboutStorage";
 import { getFaqsSettings } from "@/lib/faqsStorage";
+import { getContactSettings } from "@/lib/contactStorage";
 import { neon } from "@neondatabase/serverless";
 
 export default async function HomeSPA() {
@@ -33,10 +34,11 @@ export default async function HomeSPA() {
     }
   }
 
-  // Woz Data Pipeline: Always fetch the latest persistent About Us and FAQs settings
-  const [aboutSettings, faqsSettings] = await Promise.all([
+  // Woz Data Pipeline: Always fetch the latest persistent settings across sections
+  const [aboutSettings, faqsSettings, contactSettings] = await Promise.all([
     getAboutSettings(),
     getFaqsSettings(),
+    getContactSettings(),
   ]);
 
   return (
@@ -61,8 +63,8 @@ export default async function HomeSPA() {
         <FAQs settings={faqsSettings} />
       </section>
 
-      <section id="contact" className="py-20 bg-slate-900 text-white">
-        <Contact />
+      <section id="contact">
+        <Contact settings={contactSettings} />
       </section>
     </div>
   );

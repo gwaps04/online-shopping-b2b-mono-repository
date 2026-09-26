@@ -4,6 +4,7 @@ import { neon } from "@neondatabase/serverless";
 import { revalidatePath } from "next/cache";
 import { getAboutSettings, saveAboutSettings } from "@/lib/aboutStorage";
 import { getFaqsSettings, saveFaqsSettings } from "@/lib/faqsStorage";
+import { getContactSettings, saveContactSettings } from "@/lib/contactStorage";
 
 function getSql() {
   const dbUrl = process.env.DATABASE_URL;
@@ -19,6 +20,10 @@ export async function getAboutSettingsAction() {
 
 export async function getFaqsSettingsAction() {
   return await getFaqsSettings();
+}
+
+export async function getContactSettingsAction() {
+  return await getContactSettings();
 }
 
 export async function updateNavbarSettings(prevState: any, formData: FormData) {
@@ -275,4 +280,63 @@ export async function updateFaqsSettings(prevState: any, formData: FormData) {
 
   return { success: "FAQs section and styling updated successfully!", error: "" };
 }
+
+export async function updateContactSettings(prevState: any, formData: FormData) {
+  const title = (formData.get("title") as string)?.trim() || "Get in Touch with Us";
+  const subtitle = (formData.get("subtitle") as string)?.trim() || "";
+  const phoneNumber = (formData.get("phoneNumber") as string)?.trim() || "";
+  const phoneLabel = (formData.get("phoneLabel") as string)?.trim() || "Direct Support Hotline";
+  const emailAddress = (formData.get("emailAddress") as string)?.trim() || "";
+  const address = (formData.get("address") as string)?.trim() || "";
+  const operatingHours = (formData.get("operatingHours") as string)?.trim() || "";
+
+  if (!phoneNumber) {
+    return { error: "Business contact number is required.", success: "" };
+  }
+
+  const bgType = ((formData.get("bgType") as string) || "solid") as "solid" | "gradient";
+  const bgColor = (formData.get("bgColor") as string) || "#0f172a";
+  const bgGradientEnd = (formData.get("bgGradientEnd") as string) || "#1e293b";
+  const bgGradientDirection = (formData.get("bgGradientDirection") as string) || "to-br";
+
+  const textColor = (formData.get("textColor") as string) || "#f8fafc";
+  const fontKey = (formData.get("fontKey") as string) || "sans";
+  const accentColor = (formData.get("accentColor") as string) || "#3b82f6";
+  const cardBg = (formData.get("cardBg") as string) || "rgba(255, 255, 255, 0.06)";
+  const cardBorder = (formData.get("cardBorder") as string) || "rgba(255, 255, 255, 0.12)";
+
+  try {
+    await saveContactSettings({
+      title,
+      subtitle,
+      phone_number: phoneNumber,
+      phone_label: phoneLabel,
+      email_address: emailAddress,
+      address,
+      operating_hours: operatingHours,
+      bg_type: bgType,
+      bg_color: bgColor,
+      bg_gradient_end: bgGradientEnd,
+      bg_gradient_direction: bgGradientDirection,
+      text_color: textColor,
+      font_key: fontKey,
+      accent_color: accentColor,
+      card_bg: cardBg,
+      card_border: cardBorder,
+    });
+  } catch (error) {
+    console.error("Contact Settings Save Error:", error);
+    return { error: "Failed to update Contact section settings.", success: "" };
+  }
+
+  try {
+    revalidatePath("/", "layout");
+    revalidatePath("/admin/content/contact");
+  } catch {
+    // Ignore in non-request test contexts
+  }
+
+  return { success: "Contact section content & styling updated successfully!", error: "" };
+}
+
 

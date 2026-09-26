@@ -1,0 +1,18 @@
+{
+  "title": "Reach Our Customer Support Concierge",
+  "subtitle": "Our dedicated specialists are available 24/7 to answer your calls and inquiries.",
+  "phone_number": "+1 (888) 999-4321",
+  "phone_label": "24/7 VIP Customer Support Line",
+  "email_address": "support@storebrand.com",
+  "address": "100 Broadway, 25th Floor, New York, NY 10005",
+  "operating_hours": "Monday – Sunday: 24/7 Support Available",
+  "bg_type": "gradient",
+  "bg_color": "#0f172a",
+  "bg_gradient_end": "#1e293b",
+  "bg_gradient_direction": "to-br",
+  "text_color": "#f8fafc",
+  "font_key": "sans",
+  "accent_color": "#3b82f6",
+  "card_bg": "rgba(255, 255, 255, 0.06)",
+  "card_border": "rgba(255, 255, 255, 0.12)"
+}

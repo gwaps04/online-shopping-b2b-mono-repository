@@ -7,7 +7,7 @@ import {
   AlertCircle, ChevronDown, RotateCcw, LayoutGrid
 } from "lucide-react";
 import { updateFaqsSettings, getFaqsSettingsAction } from "../actions";
-import { FAQItem, DEFAULT_FAQS, DEFAULT_FAQ_SETTINGS } from "@/lib/faqsStorage";
+import { FAQItem, DEFAULT_FAQS, DEFAULT_FAQ_SETTINGS } from "@/lib/faqsTypes";
 
 const initialState = { success: "", error: "" };
 
