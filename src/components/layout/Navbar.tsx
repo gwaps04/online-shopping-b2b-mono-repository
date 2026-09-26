@@ -1,16 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation"; 
 import { 
-  Menu, X, Trash2, Plus, Minus, ShoppingBag, Tag, 
-  User, Settings, LogOut, Package, ChevronDown, 
-  AlertCircle, ExternalLink 
+  Menu, X, User, Settings, LogOut, Package, 
+  ChevronDown, ExternalLink 
 } from "lucide-react";
 import SearchBar from "@/components/ui/SearchBar";
 import CartIcon from "@/components/ui/CartIcon";
-import { useCart } from "@/lib/CartContext";
+import CartDrawer from "@/components/layout/CartDrawer";
 import { logoutUser } from "@/app/actions/auth";
 
 const THEME_DICTIONARY: Record<string, { bg: string, text: string, hover: string }> = {
@@ -36,10 +34,7 @@ const NAV_LINKS = [
 export default function Navbar({ settings, isLoggedIn = false, firstName = "" }: { settings: any, isLoggedIn?: boolean, firstName?: string }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const router = useRouter(); 
-  
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const { cart, removeFromCart, updateQuantity, totalPrice, formatPrice } = useCart();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const activeTheme = THEME_DICTIONARY[settings?.theme_key] || THEME_DICTIONARY["light"];
@@ -57,13 +52,8 @@ export default function Navbar({ settings, isLoggedIn = false, firstName = "" }:
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleProceedToCheckout = () => {
-    setIsCartOpen(false); 
-    router.push("/checkout"); 
-  };
-
   return (
-    <>
+    <React.Fragment>
       <header className={`fixed top-0 left-0 right-0 z-40 transition-colors duration-300 ${activeTheme.bg}`}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-18">
@@ -96,7 +86,7 @@ export default function Navbar({ settings, isLoggedIn = false, firstName = "" }:
                     aria-expanded={isUserMenuOpen}
                   >
                     <User className="w-5 h-5 fill-emerald-600/20 text-emerald-600" />
-                    <span className="text-sm font-bold truncate max-w-[100px]">Hi, {firstName}</span>
+                    <span className="text-sm font-bold truncate max-w-25">Hi, {firstName}</span>
                     <ChevronDown className={`w-4 h-4 text-emerald-600 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180' : ''}`} />
                   </button>
 
@@ -220,6 +210,12 @@ export default function Navbar({ settings, isLoggedIn = false, firstName = "" }:
           </div>
         )}
       </header>
-    </>
+
+      {/* Slide-over Shopping Cart Drawer */}
+      <CartDrawer 
+        isOpen={isCartOpen} 
+        onClose={() => setIsCartOpen(false)} 
+      />
+    </React.Fragment>
   );
 }

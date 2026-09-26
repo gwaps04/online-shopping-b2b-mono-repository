@@ -11,7 +11,6 @@ const BTN_DICT: Record<string, string> = {
 };
 
 export default async function Hero() {
-  const sql = neon(process.env.DATABASE_URL!);
   let data = {
     title: "Elevate Your Lifestyle", subtitle: "Premium curation for the modern world.",
     layout_style: "background", image_url: "",
@@ -19,11 +18,16 @@ export default async function Hero() {
     btn_secondary_text: "Learn More", btn_secondary_theme: "outline-light"
   };
 
-  try {
-    const res = await sql`SELECT * FROM hero_settings WHERE id = 1`;
-    if (res.length > 0) data = res[0] as any;
-  } catch (e) {
-    console.error("Hero missing DB");
+  // Safe Guard: Only initialize neon() when DATABASE_URL is provided
+  const dbUrl = process.env.DATABASE_URL;
+  if (dbUrl && dbUrl.startsWith("postgres")) {
+    try {
+      const sql = neon(dbUrl);
+      const res = await sql`SELECT * FROM hero_settings WHERE id = 1`;
+      if (res.length > 0) data = res[0] as any;
+    } catch (e) {
+      console.warn("Hero DB query notice:", e);
+    }
   }
 
   const primaryClass = BTN_DICT[data.btn_primary_theme] || BTN_DICT["solid-blue"];

@@ -1,6 +1,7 @@
-import { LayoutDashboard, FileText, Settings, LogOut, Store, ChevronDown, Package, Zap } from "lucide-react";
+import { LogOut, Store } from "lucide-react";
 import Link from "next/link";
 import { logoutAction } from "./actions";
+import AdminNav from "./AdminNav";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -14,55 +15,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </Link>
         </div>
         
-        <nav className="flex-1 py-6 flex flex-col gap-1 px-3 overflow-y-auto">
-          <Link href="/admin" className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-slate-900 hover:text-white transition-colors">
-            <LayoutDashboard className="w-5 h-5" />
-            Dashboard
-          </Link>
-
-          {/* Orders Dashboard Link */}
-          <Link href="/admin/orders" className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-slate-900 hover:text-white transition-colors">
-            <Package className="w-5 h-5" />
-            Orders
-          </Link>
-
-          {/* Woz Engine: Automation & Webhook Integrations */}
-          <Link href="/admin/automation" className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-slate-900 hover:text-white transition-colors mb-2">
-            <Zap className="w-5 h-5 text-amber-400" />
-            Automations & Webhooks
-          </Link>
-          
-          {/* Section Content Accordion */}
-          <details className="group" open>
-            <summary className="flex items-center justify-between px-3 py-2.5 rounded-md hover:bg-slate-900 hover:text-white transition-colors cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
-              <div className="flex items-center gap-3">
-                <FileText className="w-5 h-5" />
-                Section Content
-              </div>
-              <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180 opacity-50 group-hover:opacity-100" />
-            </summary>
-            
-            <div className="flex flex-col gap-1 mt-1 pl-11">
-              <Link href="/admin/content" className="block px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">
-                Navigation Bar
-              </Link>
-              <Link href="/admin/content/hero" className="block px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">
-                Hero Section
-              </Link>
-              <Link href="/admin/content/categories" className="block px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">
-                Categories Grid
-              </Link>
-              <Link href="/admin/content/products" className="block px-3 py-2 text-sm text-slate-400 hover:text-white transition-colors">
-                Products Inventory
-              </Link>
-            </div>
-          </details>
-
-          <Link href="/admin/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-md hover:bg-slate-900 hover:text-white transition-colors mt-2">
-            <Settings className="w-5 h-5" />
-            Settings
-          </Link>
-        </nav>
+        {/* Woz Modular Navigation with Active Link Detection */}
+        <AdminNav />
 
         {/* Secure Logout Form */}
         <div className="p-4 border-t border-slate-900 shrink-0">
