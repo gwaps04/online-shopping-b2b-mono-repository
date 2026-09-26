@@ -1,0 +1,17 @@
+{
+  "company_name_override": "ELEVATE",
+  "tagline": "Artisanal luxury pieces built for lifetime distinction.",
+  "copyright_text": "All rights strictly reserved.",
+  "bg_type": "gradient",
+  "bg_color": "#020617",
+  "bg_gradient_end": "#0f172a",
+  "bg_gradient_direction": "to-b",
+  "font_key": "display",
+  "text_color": "#94a3b8",
+  "heading_color": "#ffffff",
+  "accent_color": "#3b82f6",
+  "newsletter_title": "Stay Updated & Exclusive",
+  "newsletter_description": "Receive private sale alerts and new drop alerts.",
+  "newsletter_placeholder": "Your email address...",
+  "newsletter_button_text": "Subscribe Now"
+}

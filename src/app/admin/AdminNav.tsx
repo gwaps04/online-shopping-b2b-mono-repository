@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
   LayoutDashboard, FileText, Settings, Package, Zap, ChevronDown, 
-  Menu, Sparkles, Grid, ShoppingBag, Users, CheckCircle2, HelpCircle, PhoneCall 
+  Menu, Sparkles, Grid, ShoppingBag, Users, CheckCircle2, HelpCircle, PhoneCall, PanelBottom 
 } from "lucide-react";
 
 export default function AdminNav() {
@@ -21,6 +21,7 @@ export default function AdminNav() {
     { name: "About Us Section", href: "/admin/content/about", icon: Users, badge: "Active" },
     { name: "FAQs Section", href: "/admin/content/faqs", icon: HelpCircle, badge: "Active" },
     { name: "Contact Section", href: "/admin/content/contact", icon: PhoneCall, badge: "Active" },
+    { name: "Footer Section", href: "/admin/content/footer", icon: PanelBottom, badge: "Active" },
   ];
 
   return (

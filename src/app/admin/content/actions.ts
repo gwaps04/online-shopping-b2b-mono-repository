@@ -5,6 +5,12 @@ import { revalidatePath } from "next/cache";
 import { getAboutSettings, saveAboutSettings } from "@/lib/aboutStorage";
 import { getFaqsSettings, saveFaqsSettings } from "@/lib/faqsStorage";
 import { getContactSettings, saveContactSettings } from "@/lib/contactStorage";
+import { 
+  getFooterSettings, 
+  saveFooterSettings, 
+  subscribeNewsletter, 
+  getNewsletterSubscribers 
+} from "@/lib/footerStorage";
 
 function getSql() {
   const dbUrl = process.env.DATABASE_URL;
@@ -24,6 +30,26 @@ export async function getFaqsSettingsAction() {
 
 export async function getContactSettingsAction() {
   return await getContactSettings();
+}
+
+export async function getFooterSettingsAction() {
+  return await getFooterSettings();
+}
+
+export async function getNewsletterSubscribersAction() {
+  return await getNewsletterSubscribers();
+}
+
+export async function subscribeNewsletterAction(prevState: any, formData: FormData) {
+  const email = (formData.get("email") as string)?.trim();
+  if (!email) {
+    return { error: "Please provide an email address.", success: "" };
+  }
+  const result = await subscribeNewsletter(email);
+  if (!result.success) {
+    return { error: result.message, success: "" };
+  }
+  return { success: result.message, error: "" };
 }
 
 export async function updateNavbarSettings(prevState: any, formData: FormData) {
@@ -338,5 +364,70 @@ export async function updateContactSettings(prevState: any, formData: FormData) 
 
   return { success: "Contact section content & styling updated successfully!", error: "" };
 }
+
+export async function updateFooterSettings(prevState: any, formData: FormData) {
+  const companyNameOverride = (formData.get("companyNameOverride") as string)?.trim() || "";
+  const tagline = (formData.get("tagline") as string)?.trim() || "Premium quality products designed for modern life.";
+  const copyrightText = (formData.get("copyrightText") as string)?.trim() || "All rights reserved.";
+
+  const bgType = ((formData.get("bgType") as string) || "solid") as "solid" | "gradient";
+  const bgColor = (formData.get("bgColor") as string) || "#020617";
+  const bgGradientEnd = (formData.get("bgGradientEnd") as string) || "#0f172a";
+  const bgGradientDirection = (formData.get("bgGradientDirection") as string) || "to-b";
+
+  const fontKey = (formData.get("fontKey") as string) || "sans";
+  const textColor = (formData.get("textColor") as string) || "#94a3b8";
+  const headingColor = (formData.get("headingColor") as string) || "#f8fafc";
+  const accentColor = (formData.get("accentColor") as string) || "#3b82f6";
+
+  const newsletterTitle = (formData.get("newsletterTitle") as string)?.trim() || "Stay Updated";
+  const newsletterDescription = (formData.get("newsletterDescription") as string)?.trim() || "";
+  const newsletterPlaceholder = (formData.get("newsletterPlaceholder") as string)?.trim() || "Enter your email...";
+  const newsletterButtonText = (formData.get("newsletterButtonText") as string)?.trim() || "Join";
+
+  const columnsRaw = formData.get("columnsJson") as string;
+  let columns = [];
+  try {
+    if (columnsRaw) {
+      columns = JSON.parse(columnsRaw);
+    }
+  } catch (e) {
+    console.error("Failed to parse columnsJson:", e);
+  }
+
+  try {
+    await saveFooterSettings({
+      company_name_override: companyNameOverride || undefined,
+      tagline,
+      copyright_text: copyrightText,
+      bg_type: bgType,
+      bg_color: bgColor,
+      bg_gradient_end: bgGradientEnd,
+      bg_gradient_direction: bgGradientDirection,
+      font_key: fontKey,
+      text_color: textColor,
+      heading_color: headingColor,
+      accent_color: accentColor,
+      newsletter_title: newsletterTitle,
+      newsletter_description: newsletterDescription,
+      newsletter_placeholder: newsletterPlaceholder,
+      newsletter_button_text: newsletterButtonText,
+      columns: columns.length > 0 ? columns : undefined as any,
+    });
+  } catch (error) {
+    console.error("Footer Settings Save Error:", error);
+    return { error: "Failed to update Footer settings.", success: "" };
+  }
+
+  try {
+    revalidatePath("/", "layout");
+    revalidatePath("/admin/content/footer");
+  } catch {
+    // Ignore in non-request test contexts
+  }
+
+  return { success: "Footer settings and styling updated successfully!", error: "" };
+}
+
 
 

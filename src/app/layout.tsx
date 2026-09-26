@@ -6,6 +6,7 @@ import "./globals.css";
 import Navbar from "@/components/layout/Navbar"; // Ensure your path matches your project structure
 import Footer from "@/components/layout/Footer";
 import { CartProvider } from "@/lib/CartContext";
+import { getFooterSettings } from "@/lib/footerStorage";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const montserrat = Montserrat({ subsets: ["latin"], variable: "--font-montserrat" });
@@ -16,21 +17,27 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const sql = neon(process.env.DATABASE_URL!);
+  const dbUrl = process.env.DATABASE_URL;
   let navSettings = { company_name: "STORE.", theme_key: "light", font_key: "display", logo_url: "" };
   let storeCurrency = "USD"; // Default fallback
   
-  try {
-    const [globalData, prodData] = await Promise.all([
-      sql`SELECT * FROM global_settings WHERE id = 1`,
-      sql`SELECT currency FROM product_settings WHERE id = 1`
-    ]);
-    
-    if (globalData.length > 0) navSettings = globalData[0] as any;
-    if (prodData.length > 0) storeCurrency = prodData[0].currency;
-  } catch (e) {
-    console.error("Settings Table missing or error fetching data");
+  if (dbUrl && dbUrl.startsWith("postgres")) {
+    try {
+      const sql = neon(dbUrl);
+      const [globalData, prodData] = await Promise.all([
+        sql`SELECT * FROM global_settings WHERE id = 1`,
+        sql`SELECT currency FROM product_settings WHERE id = 1`
+      ]);
+      
+      if (globalData.length > 0) navSettings = globalData[0] as any;
+      if (prodData.length > 0) storeCurrency = prodData[0].currency;
+    } catch (e) {
+      console.error("Settings Table missing or error fetching data", e);
+    }
   }
+
+  // Fetch Footer persistent settings
+  const footerSettings = await getFooterSettings();
 
   // Woz Engine: Identity Hydration
   const cookieStore = await cookies();
@@ -39,9 +46,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   let isLoggedIn = false;
   let firstName = "";
 
-  // If the secure cookie exists, fetch the user's name
-  if (sessionCookie?.value) {
+  // If the secure cookie exists and db is configured, fetch the user's name
+  if (sessionCookie?.value && dbUrl && dbUrl.startsWith("postgres")) {
     try {
+      const sql = neon(dbUrl);
       const userRes = await sql`SELECT first_name FROM users WHERE id = ${sessionCookie.value}`;
       if (userRes.length > 0) {
         isLoggedIn = true;
@@ -64,7 +72,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             {children}
           </main>
           
-          <Footer />
+          <Footer settings={footerSettings} companyName={navSettings.company_name} />
         </CartProvider>
       </body>
     </html>
