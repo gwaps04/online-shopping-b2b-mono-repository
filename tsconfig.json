@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "es2022", /* <-- Woz Correction: Modern standard */
+    "target": "es2022",
     "lib": [
       "dom",
       "dom.iterable",

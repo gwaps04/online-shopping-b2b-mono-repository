@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
   LayoutDashboard, FileText, Settings, Package, Zap, ChevronDown, 
-  Menu, Sparkles, Grid, ShoppingBag, Users, CheckCircle2, HelpCircle, PhoneCall, PanelBottom 
+  Menu, Sparkles, Grid, ShoppingBag, Users, CheckCircle2, HelpCircle, PhoneCall, PanelBottom, Bot 
 } from "lucide-react";
 
 export default function AdminNav() {
@@ -52,17 +52,35 @@ export default function AdminNav() {
         <span>Orders</span>
       </Link>
 
-      {/* Automation */}
+      {/* Automation (Orders & PayMongo) */}
       <Link 
         href="/admin/automation" 
         className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors font-medium text-sm min-h-11 ${
-          pathname?.startsWith("/admin/automation") 
+          pathname === "/admin/automation" 
             ? "bg-slate-900 text-white font-bold" 
             : "text-slate-400 hover:bg-slate-900 hover:text-white"
         }`}
       >
         <Zap className="w-5 h-5 text-amber-400" />
         <span>Automations & Webhooks</span>
+      </Link>
+
+      {/* Business AI Assistant (Dedicated Chat Webhook) */}
+      <Link 
+        href="/admin/ai-assistant" 
+        className={`flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors font-medium text-sm min-h-11 ${
+          pathname?.startsWith("/admin/ai-assistant") 
+            ? "bg-red-600 text-white font-bold shadow-md shadow-red-900/30" 
+            : "text-slate-300 hover:bg-slate-900 hover:text-white"
+        }`}
+      >
+        <div className="flex items-center gap-3">
+          <Bot className="w-5 h-5 text-red-400" />
+          <span>Business AI Assistant</span>
+        </div>
+        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-red-500/20 text-red-300 border border-red-500/30">
+          n8n Chat
+        </span>
       </Link>
       
       {/* Section Content Accordion */}

@@ -7,6 +7,8 @@ import Navbar from "@/components/layout/Navbar"; // Ensure your path matches you
 import Footer from "@/components/layout/Footer";
 import { CartProvider } from "@/lib/CartContext";
 import { getFooterSettings } from "@/lib/footerStorage";
+import FloatingAIAssistant from "@/components/common/FloatingAIAssistant";
+import { getAIAssistantSettings } from "@/lib/aiAssistantStorage";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const montserrat = Montserrat({ subsets: ["latin"], variable: "--font-montserrat" });
@@ -38,6 +40,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   // Fetch Footer persistent settings
   const footerSettings = await getFooterSettings();
+
+  // Fetch AI Assistant settings
+  const aiSettings = await getAIAssistantSettings();
 
   // Woz Engine: Identity Hydration
   const cookieStore = await cookies();
@@ -73,6 +78,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </main>
           
           <Footer settings={footerSettings} companyName={navSettings.company_name} />
+          <FloatingAIAssistant initialSettings={aiSettings} />
         </CartProvider>
       </body>
     </html>

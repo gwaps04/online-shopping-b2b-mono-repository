@@ -1,0 +1,16 @@
+export interface AIAssistantSettings {
+  ai_assistant_webhook_url: string;
+  ai_assistant_active: boolean;
+  ai_assistant_name: string;
+  ai_assistant_welcome_message: string;
+  ai_assistant_button_text: string;
+  updated_at?: string;
+}
+
+export const DEFAULT_AI_ASSISTANT_SETTINGS: AIAssistantSettings = {
+  ai_assistant_webhook_url: "",
+  ai_assistant_active: true,
+  ai_assistant_name: "Business AI Persona",
+  ai_assistant_welcome_message: "Hello! 👋 I am your Business AI Assistant. How can I help you today with our products, orders, or store policies?",
+  ai_assistant_button_text: "Talk with our AI Persona",
+};

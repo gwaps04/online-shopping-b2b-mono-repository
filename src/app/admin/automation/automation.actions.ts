@@ -1,22 +1,53 @@
+// FILE: src/app/admin/automation/automation.actions.ts
 "use server";
 
 import { neon } from "@neondatabase/serverless";
 import { revalidatePath } from "next/cache";
 
-export async function saveAutomationSettings(prevState: any, formData: FormData) {
+export async function saveOrderAutomationSettings(prevState: any, formData: FormData) {
   const webhookUrl = (formData.get("webhookUrl") as string || "").trim();
   const webhookSecret = (formData.get("webhookSecret") as string || "").trim();
   const isActive = formData.get("isActive") === "on";
-  
-  // Woz Engine: Extract the PayMongo Key securely
   const paymongoSecret = (formData.get("paymongoSecret") as string || "").trim();
 
-  const sql = neon(process.env.DATABASE_URL!);
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl || !dbUrl.startsWith("postgres")) {
+    return { error: "Database connection not available.", success: "" };
+  }
 
   try {
+    const sql = neon(dbUrl);
+    
+    // Ensure table exists
     await sql`
-      INSERT INTO automation_settings (id, webhook_url, webhook_secret, is_active, paymongo_secret_key, updated_at)
-      VALUES (1, ${webhookUrl}, ${webhookSecret}, ${isActive}, ${paymongoSecret}, CURRENT_TIMESTAMP)
+      CREATE TABLE IF NOT EXISTS automation_settings (
+        id integer PRIMARY KEY DEFAULT 1,
+        webhook_url text DEFAULT '',
+        webhook_secret text DEFAULT '',
+        is_active boolean DEFAULT false,
+        paymongo_secret_key text DEFAULT '',
+        updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+
+    // Only update order webhook and payment fields! NEVER touch AI assistant columns!
+    await sql`
+      INSERT INTO automation_settings (
+        id, 
+        webhook_url, 
+        webhook_secret, 
+        is_active, 
+        paymongo_secret_key, 
+        updated_at
+      )
+      VALUES (
+        1, 
+        ${webhookUrl}, 
+        ${webhookSecret}, 
+        ${isActive}, 
+        ${paymongoSecret}, 
+        CURRENT_TIMESTAMP
+      )
       ON CONFLICT (id) DO UPDATE SET
         webhook_url = EXCLUDED.webhook_url,
         webhook_secret = EXCLUDED.webhook_secret,
@@ -26,14 +57,14 @@ export async function saveAutomationSettings(prevState: any, formData: FormData)
     `;
 
     revalidatePath("/admin/automation");
-    return { success: "Settings and API Keys saved securely.", error: "" };
+    return { success: "Order Fulfillment & Verification Webhook settings saved successfully.", error: "" };
   } catch (error: any) {
-    console.error("Automation DB Save Error:", error);
-    return { error: `Failed to save configuration: ${error.message}`, success: "" };
+    console.error("Order Automation Save Error:", error);
+    return { error: `Failed to save order webhook: ${error.message}`, success: "" };
   }
 }
 
-export async function sendTestPing(webhookUrl: string, webhookSecret: string) {
+export async function sendOrderTestPing(webhookUrl: string, webhookSecret: string) {
   if (!webhookUrl || !webhookUrl.startsWith("http")) {
     return { success: false, message: "A valid HTTP/HTTPS Webhook URL is required." };
   }
