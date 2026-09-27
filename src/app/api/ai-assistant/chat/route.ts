@@ -36,8 +36,9 @@ export async function POST(req: NextRequest) {
     // 1. Dispatch to self-hosted n8n workflow
     try {
       const n8nPayload = {
-        message: cleanMessage,
+        action: "sendMessage",
         chatInput: cleanMessage,
+        message: cleanMessage,
         sessionId: effectiveSessionId,
         timestamp: new Date().toISOString(),
         source: "storefront_chat",
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
           "User-Agent": "StoreMono-AIAssistantClient/1.0",
         },
         body: JSON.stringify(n8nPayload),
-        signal: AbortSignal.timeout(20000), // 20-second timeout for LLM inference
+        signal: AbortSignal.timeout(30000), // 30-second timeout for LLM inference
       });
 
       if (response.ok) {
@@ -67,10 +68,16 @@ export async function POST(req: NextRequest) {
             else if (parsed.response) replyText = String(parsed.response);
             else if (parsed.text) replyText = String(parsed.text);
             else if (parsed.message) replyText = String(parsed.message);
+            else if (parsed.content) replyText = String(parsed.content);
+            else if (parsed.data?.output) replyText = String(parsed.data.output);
+            else if (parsed.data?.text) replyText = String(parsed.data.text);
             else if (Array.isArray(parsed) && parsed[0]?.output) replyText = String(parsed[0].output);
+            else if (Array.isArray(parsed) && parsed[0]?.text) replyText = String(parsed[0].text);
+            else if (Array.isArray(parsed) && parsed[0]?.response) replyText = String(parsed[0].response);
+            else if (Array.isArray(parsed) && parsed[0]?.content) replyText = String(parsed[0].content);
+            else if (Array.isArray(parsed) && parsed[0]?.json?.output) replyText = String(parsed[0].json.output);
             else if (Array.isArray(parsed) && parsed[0]?.json?.text) replyText = String(parsed[0].json.text);
             else if (Array.isArray(parsed) && parsed[0]?.json?.message) replyText = String(parsed[0].json.message);
-            else if (Array.isArray(parsed) && parsed[0]?.json?.output) replyText = String(parsed[0].json.output);
             else replyText = JSON.stringify(parsed, null, 2);
           }
         } catch {

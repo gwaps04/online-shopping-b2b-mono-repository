@@ -148,8 +148,9 @@ export async function testN8nAIPing(
   const testSession = sessionId || `test_admin_${Date.now()}`;
 
   const payload = {
-    message: promptMessage || "Hello! What products are available in your store?",
+    action: "sendMessage",
     chatInput: promptMessage || "Hello! What products are available in your store?",
+    message: promptMessage || "Hello! What products are available in your store?",
     sessionId: testSession,
     timestamp: new Date().toISOString(),
     event: "ai_chat.message",
@@ -164,7 +165,7 @@ export async function testN8nAIPing(
         "User-Agent": "StoreMono-AIAssistant/1.0",
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(15000), // 15s timeout for AI agent execution
+      signal: AbortSignal.timeout(30000), // 30s timeout for AI agent execution
     });
 
     const latency = Date.now() - startTime;
@@ -190,7 +191,14 @@ export async function testN8nAIPing(
         else if (parsed.response) aiReply = String(parsed.response);
         else if (parsed.text) aiReply = String(parsed.text);
         else if (parsed.message) aiReply = String(parsed.message);
+        else if (parsed.content) aiReply = String(parsed.content);
+        else if (parsed.data?.output) aiReply = String(parsed.data.output);
+        else if (parsed.data?.text) aiReply = String(parsed.data.text);
         else if (Array.isArray(parsed) && parsed[0]?.output) aiReply = String(parsed[0].output);
+        else if (Array.isArray(parsed) && parsed[0]?.text) aiReply = String(parsed[0].text);
+        else if (Array.isArray(parsed) && parsed[0]?.response) aiReply = String(parsed[0].response);
+        else if (Array.isArray(parsed) && parsed[0]?.content) aiReply = String(parsed[0].content);
+        else if (Array.isArray(parsed) && parsed[0]?.json?.output) aiReply = String(parsed[0].json.output);
         else if (Array.isArray(parsed) && parsed[0]?.json?.text) aiReply = String(parsed[0].json.text);
         else if (Array.isArray(parsed) && parsed[0]?.json?.message) aiReply = String(parsed[0].json.message);
         else aiReply = JSON.stringify(parsed, null, 2);
